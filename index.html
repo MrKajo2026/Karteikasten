@@ -175,12 +175,15 @@ nav.bar .plus svg{background:var(--fg);stroke:var(--bg);border-radius:50%;width:
 .fb.ok{background:var(--hero);color:var(--hero-fg)}.fb.ok .small{color:var(--hero-mute)}
 .fb.no{background:var(--bad-soft)}.fb.al{background:var(--warn-soft)}
 /* Karteikarten */
-.deck{position:relative;min-height:360px;touch-action:pan-y;user-select:none;-webkit-user-select:none}
+.deck{position:relative;min-height:360px;user-select:none;-webkit-user-select:none}
+.fcard,.fcard *{touch-action:none}
+.swipe-tag{position:absolute;top:18px;left:50%;transform:translateX(-50%);z-index:3;pointer-events:none;font-weight:700;font-size:.85rem;letter-spacing:.06em;text-transform:uppercase;padding:6px 14px;border-radius:999px}
+.swipe-tag.r{background:var(--ok);color:var(--on-ink)}.swipe-tag.l{background:var(--warn);color:var(--on-ink)}
 .deck::before{content:"";position:absolute;inset:14px 14px -10px;background:var(--sunk);border-radius:30px}
 .fcard{position:absolute;inset:0;perspective:1400px;cursor:pointer}
 .fcard .inner{position:relative;width:100%;height:100%;transition:transform .5s cubic-bezier(.3,.7,.3,1);transform-style:preserve-3d}
 .fcard.flipped .inner{transform:rotateY(180deg)}
-.face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;background:var(--surface);border:1px solid var(--line);border-radius:30px;display:grid;place-items:center;padding:56px 22px 28px;text-align:center;overflow:auto;box-shadow:0 24px 44px -30px rgb(20 30 25 / .4)}
+.face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;background:var(--surface);border:1px solid var(--line);border-radius:30px;display:grid;place-items:center;padding:56px 22px 28px;text-align:center;overflow:hidden;box-shadow:0 24px 44px -30px rgb(20 30 25 / .4)}
 .face .w{font-family:var(--f-display);font-size:clamp(2.1rem,9.5vw,2.9rem);font-weight:400;overflow-wrap:anywhere;max-width:100%;display:grid;gap:12px;justify-items:center;line-height:1.12;letter-spacing:-.015em}
 .face .w img{max-height:150px;width:auto;border-radius:14px}
 .face .lbl{position:absolute;top:22px;left:24px}
@@ -976,7 +979,7 @@ function vFlash(){
   <div class="progress"><span style="width:${v.i/total*100}%"></span></div>
   ${v.track?`<div class="counts"><span class="l">${v.learn.length} · Noch lernen</span><span class="muted small">${v.i+1} / ${total}</span><span class="r">${v.know.length} · Gewusst</span></div>`:`<div class="counts"><span></span><span class="muted small">${v.i+1} / ${total}</span><span></span></div>`}
   <div class="deck" id="deck">${flashCardHtml(s,c,it.rev)}</div>
-  <p class="small muted" style="text-align:center;margin:0">${v.track?'Tippen zum Umdrehen · nach rechts wischen: weiß ich · nach links: lerne ich noch':'Tippen zum Umdrehen · wischen zum Blättern'}</p>
+  <p class="small muted" style="text-align:center;margin:0">${v.track?'Tippen zum Umdrehen · rechts wischen = gewusst · links = noch lernen':'Tippen zum Umdrehen · wischen zum Blättern'}</p>
   <div class="fbtns">${v.track?'<button class="big" id="no" aria-label="Lerne ich noch"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>':'<button class="big" id="prev" aria-label="Vorherige Karte"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>'}
     <div class="row" style="gap:8px"><button class="icon" id="undo" aria-label="Rückgängig" ${v.i?'':'disabled'}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7L4 12l5 5"/><path d="M4 12h10a6 6 0 0 1 0 12"/></svg></button>
     <button class="icon" id="shuf" aria-pressed="${!!v.shuffle}" aria-label="Mischen" ${v.srs?'disabled':''} style="${v.shuffle?'color:var(--ink);border-color:var(--ink)':''}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h3.5c2 0 3 1 4.2 3l1.6 3c1.2 2 2.2 3 4.2 3H21M17 13l3 3-3 3M3 17h3.5c1.4 0 2.3-.5 3.1-1.5M13.4 8.5c.8-1 1.7-1.5 3.1-1.5H21M17 4l3 3-3 3"/></svg></button></div>
@@ -987,15 +990,28 @@ function vFlash(){
   if(S.user.settings?.autoAudio)speak(side(s,c,it.rev).ask,side(s,c,it.rev).askL);
   const act=know=>{if(!v.track){v.i=Math.max(0,Math.min(total,v.i+(know?1:-1)));if(v.i>=total)v.phase='done';return render()}
     v.hist.push({i:v.i,know,prev:JSON.stringify(cp(s.id,c.id))});(know?v.know:v.learn).push(c.id);grade(s.id,c.id,know);qProg(s.id);if(know)cheer(1);v.i++;if(v.i>=total)v.phase='done';render()};
-  // Wischen
-  let x0=null,dx=0,moved=false;
-  fc.addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;x0=e.clientX;dx=0;moved=false;fc.setPointerCapture(e.pointerId);fc.style.transition='none'});
-  fc.addEventListener('pointermove',e=>{if(x0===null)return;dx=e.clientX-x0;if(Math.abs(dx)>6)moved=true;fc.style.transform=`translateX(${dx}px) rotate(${dx/25}deg)`;
-    fc.classList.toggle('swipe-r',v.track&&dx>60);fc.classList.toggle('swipe-l',v.track&&dx<-60)});
-  const end=()=>{if(x0===null)return;fc.style.transition='transform .2s';x0=null;
-    if(Math.abs(dx)>90){fc.style.transform=`translateX(${dx>0?600:-600}px) rotate(${dx/10}deg)`;setTimeout(()=>act(v.track?dx>0:dx<0),160)}
-    else{fc.style.transform='';fc.classList.remove('swipe-r','swipe-l');if(!moved)flip()}};
-  fc.addEventListener('pointerup',end);fc.addEventListener('pointercancel',()=>{x0=null;fc.style.transform=''});
+  // Wischen (Touch, Stift, Maus): Richtung per Weg ODER Geschwindigkeit, schräg erlaubt, kein Scroll-Abbruch
+  const tag=document.createElement('span');tag.className='swipe-tag';tag.hidden=true;deck.append(tag);
+  let g=null;
+  const reset=()=>{fc.style.transition='transform .25s cubic-bezier(.3,.7,.3,1)';fc.style.transform='';fc.classList.remove('swipe-r','swipe-l');tag.hidden=true};
+  fc.addEventListener('pointerdown',e=>{if(e.target.closest('button')||g||(e.pointerType==='mouse'&&e.button!==0))return;
+    g={id:e.pointerId,x0:e.clientX,y0:e.clientY,dx:0,dy:0,t0:performance.now(),lx:e.clientX,lt:performance.now(),vx:0,horiz:null};
+    try{fc.setPointerCapture(e.pointerId)}catch(_){}fc.style.transition='none'});
+  fc.addEventListener('pointermove',e=>{if(!g||e.pointerId!==g.id)return;
+    g.dx=e.clientX-g.x0;g.dy=e.clientY-g.y0;const t=performance.now();if(t>g.lt){g.vx=.7*g.vx+.3*((e.clientX-g.lx)/(t-g.lt))}g.lx=e.clientX;g.lt=t;
+    if(g.horiz===null&&Math.hypot(g.dx,g.dy)>14)g.horiz=Math.abs(g.dx)>=Math.abs(g.dy)*0.6;
+    if(!g.horiz)return;e.preventDefault();
+    fc.style.transform=`translateX(${g.dx}px) rotate(${g.dx/22}deg)`;
+    const dir=g.dx>40?1:g.dx<-40?-1:0;
+    fc.classList.toggle('swipe-r',v.track&&dir>0);fc.classList.toggle('swipe-l',v.track&&dir<0);
+    if(dir){tag.hidden=false;tag.textContent=v.track?(dir>0?'Gewusst':'Noch lernen'):(dir>0?'Zurück':'Weiter');tag.className='swipe-tag '+(dir>0?'r':'l')}else tag.hidden=true});
+  const end=e=>{if(!g||(e&&e.pointerId!==g.id))return;const G=g;g=null;
+    const w=fc.offsetWidth||320,dist=Math.abs(G.dx),dt=Math.max(1,performance.now()-G.t0),fast=dist>35&&((Math.abs(G.vx)>0.4&&Math.sign(G.vx)===Math.sign(G.dx))||(dist/dt>0.3&&dt<450));
+    if(G.horiz&&(dist>Math.min(110,w*0.28)||fast)){const right=G.dx>0;
+      fc.style.transition='transform .2s ease-in';fc.style.transform=`translateX(${right?w*1.6:-w*1.6}px) rotate(${right?18:-18}deg)`;tag.hidden=true;
+      setTimeout(()=>act(v.track?right:!right),170)}
+    else{const tap=Math.hypot(G.dx,G.dy)<16&&dt<600;reset();if(tap)flip()}};
+  fc.addEventListener('pointerup',end);fc.addEventListener('pointercancel',e=>{if(g&&e.pointerId===g.id){g=null;reset()}});
   fc.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();flip()}});
   if(v.track){$('#yes').onclick=()=>act(true);$('#no').onclick=()=>act(false)}else{$('#next').onclick=()=>act(true);$('#prev').onclick=()=>act(false)}
   $('#undo').onclick=()=>{if(!v.i)return;if(v.track){const h=v.hist.pop();if(h){(h.know?v.know:v.learn).pop();progOf(s.id).c[v.deck[h.i].id]=JSON.parse(h.prev);bumpDaily(-1);qProg(s.id);v.i=h.i}}else v.i--;render()};
