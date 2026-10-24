@@ -194,6 +194,16 @@ nav.bar .plus svg{background:var(--ink);stroke:var(--on-ink);border-radius:10px;
 .av{display:inline-grid;place-items:center;flex:none;border-radius:50%;background:var(--ink-soft) center/cover no-repeat;color:var(--ink);font-family:var(--f-display);font-weight:700;overflow:hidden;border:2px solid var(--surface);box-shadow:0 0 0 1px var(--line)}
 .av.has{color:transparent}
 button.me{padding:0;border:0;background:transparent;border-radius:50%}
+.cheer{position:fixed;left:0;right:0;bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:60;display:flex;justify-content:center;align-items:flex-end;gap:4px;pointer-events:none}
+.cheer svg{width:clamp(84px,24vw,120px);height:auto;animation:catpop 1.7s cubic-bezier(.3,1.4,.5,1) both;filter:drop-shadow(0 6px 10px rgb(0 0 0 / .18))}
+.cheer svg:nth-child(2){animation-delay:.08s;width:clamp(96px,28vw,140px)}.cheer svg:nth-child(3){animation-delay:.16s}
+.cheer .pl,.cheer .pr{transform-box:fill-box;animation:paw .22s ease-in-out infinite alternate}
+.cheer .pl{transform-origin:right bottom}.cheer .pr{transform-origin:left bottom;animation-delay:.11s}
+.cheer .cf{transform-box:fill-box;transform-origin:center;animation:conf 1.3s ease-out both}
+@keyframes catpop{0%{transform:translateY(130%) scale(.6);opacity:0}14%{transform:translateY(-14px) scale(1.06);opacity:1}24%{transform:translateY(0) scale(1)}36%{transform:translateY(-10px)}48%{transform:translateY(0)}60%{transform:translateY(-6px)}72%{transform:translateY(0);opacity:1}100%{transform:translateY(40%);opacity:0}}
+@keyframes paw{from{transform:rotate(-14deg)}to{transform:rotate(14deg)}}
+@keyframes conf{0%{transform:translate(0,30px) scale(.2);opacity:0}20%{opacity:1}100%{transform:translate(var(--x),var(--y)) rotate(320deg);opacity:0}}
+@media (prefers-reduced-motion:reduce){.cheer svg{animation:catfade 1.6s both}.cheer .pl,.cheer .pr,.cheer .cf{animation:none}@keyframes catfade{0%,100%{opacity:0}15%,80%{opacity:1}}}
 .toggle{display:flex;align-items:center;gap:10px;justify-content:space-between}
 .toggle input{width:auto;transform:scale(1.3)}
 .checks{display:grid;gap:8px}
@@ -343,7 +353,10 @@ async function loadAll(quiet){
           pr.c[cid]={box:c.box||1,due:c.due||0,ok:c.ok||0,no:c.no||0,lv:0,seen:!!(c.ok||c.no)};P.cards.add(cid)});
         S.prog[id]=pr;P.prog.add(id)}
       P.sets.add(id)});
-    if(migrate.length)toast('Deine Lernsets wurden ins neue Format übernommen.');
+    // exakt doppelte Begriffe (gleicher Begriff und gleiche Definition) automatisch bereinigen
+    const cleaned=[];Object.values(S.sets).forEach(st=>{const d=findDups(st);if(!d.length)return;const ids=new Set(d.map(c=>c.id));
+      st.cards=st.cards.filter(c=>!ids.has(c.id));ids.forEach(id=>{P.cards.delete(id);P.delCards.add(id)});P.sets.add(st.id);cleaned.push(`${d.length} in „${st.name}“`)});
+    if(migrate.length||cleaned.length)toast([migrate.length?'Lernsets ins neue Format übernommen.':'',cleaned.length?'Doppelte Begriffe entfernt: '+cleaned.join(', ')+'.':''].filter(Boolean).join(' '));
     S.loaded=true;cacheWrite();
     setStatus(pending()?'Ungespeichert…':'Gespeichert');
     if(pending())flush();
@@ -432,6 +445,35 @@ function autoImport(s,pairs){
     if(iss.some(i=>i.hard)){res.doubts.push({term:t,definition:d,msg:iss.filter(i=>i.hard).map(i=>i.msg).join(' · ')});continue}
     have.add(k);ok.push({term:t,definition:d})}
   res.added=addCards(s.id,ok).added;return res}
+
+// ================= Jubelnde Kätzchen (eigene Zeichnung) =================
+const FURS=[{f:'#cfd3d8',s:'#5a5f66',b:'#f4f5f6'},{f:'#f3a55b',s:'#c4682a',b:'#fbe3c8'},{f:'#f6f2ea',s:'#33302c',b:'#ffffff'}];
+const CONF=['#1f4fd1','#f5d547','#1d8a55','#e8577a','#7ea2ff'];
+function kittenSvg(i){const c=FURS[i%FURS.length],o='#2b2b2b';
+  const conf=Array.from({length:9},(_,k)=>{const x=Math.round((k-4)*16+Math.random()*10),y=Math.round(-60-Math.random()*50);
+    return`<rect class="cf" x="${56+k%3*3}" y="40" width="5" height="9" rx="1.5" fill="${CONF[(k+i)%CONF.length]}" style="--x:${x}px;--y:${y}px;animation-delay:${.15+k*.03}s"/>`}).join('');
+  return`<svg viewBox="0 0 120 130" aria-hidden="true">${conf}
+  <path d="M86 112 C108 108 112 86 100 80" fill="none" stroke="${c.f}" stroke-width="9" stroke-linecap="round"/><path d="M86 112 C108 108 112 86 100 80" fill="none" stroke="${o}" stroke-width="2" stroke-linecap="round" opacity=".25"/>
+  <ellipse cx="60" cy="104" rx="27" ry="21" fill="${c.f}" stroke="${o}" stroke-width="2"/>
+  <ellipse cx="60" cy="108" rx="15" ry="13" fill="${c.b}"/>
+  <path d="M44 92 q4 6 0 12 M76 92 q-4 6 0 12" stroke="${c.s}" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <g class="pl"><path d="M38 96 C28 86 22 74 24 64" stroke="${o}" stroke-width="12" stroke-linecap="round" fill="none"/><path d="M38 96 C28 86 22 74 24 64" stroke="${c.f}" stroke-width="8" stroke-linecap="round" fill="none"/><circle cx="24" cy="61" r="7" fill="${c.b}" stroke="${o}" stroke-width="2"/><circle cx="24" cy="62" r="2.2" fill="#f2a1b3"/></g>
+  <g class="pr"><path d="M82 96 C92 86 98 74 96 64" stroke="${o}" stroke-width="12" stroke-linecap="round" fill="none"/><path d="M82 96 C92 86 98 74 96 64" stroke="${c.f}" stroke-width="8" stroke-linecap="round" fill="none"/><circle cx="96" cy="61" r="7" fill="${c.b}" stroke="${o}" stroke-width="2"/><circle cx="96" cy="62" r="2.2" fill="#f2a1b3"/></g>
+  <path d="M34 50 L30 20 L54 34 Z" fill="${c.f}" stroke="${o}" stroke-width="2" stroke-linejoin="round"/><path d="M37 45 L35 27 L49 35 Z" fill="#f2a1b3"/>
+  <path d="M86 50 L90 20 L66 34 Z" fill="${c.f}" stroke="${o}" stroke-width="2" stroke-linejoin="round"/><path d="M83 45 L85 27 L71 35 Z" fill="#f2a1b3"/>
+  <ellipse cx="60" cy="58" rx="31" ry="27" fill="${c.f}" stroke="${o}" stroke-width="2"/>
+  <path d="M60 32 v9 M52 34 l2 8 M68 34 l-2 8" stroke="${c.s}" stroke-width="3" stroke-linecap="round"/>
+  <path d="M30 58 h7 M83 58 h7" stroke="${c.s}" stroke-width="3" stroke-linecap="round"/>
+  <ellipse cx="60" cy="70" rx="15" ry="11" fill="${c.b}"/>
+  <path d="M42 57 q6 -8 12 0 M66 57 q6 -8 12 0" stroke="${o}" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <circle cx="42" cy="66" r="4.5" fill="#f2a1b3" opacity=".7"/><circle cx="78" cy="66" r="4.5" fill="#f2a1b3" opacity=".7"/>
+  <path d="M57 63 h6 l-3 3.5 Z" fill="#e57a92" stroke="${o}" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M53 69 Q60 82 67 69 Z" fill="#7a2b3a" stroke="${o}" stroke-width="1.5" stroke-linejoin="round"/><path d="M56 74 Q60 79 64 74 Q60 71 56 74 Z" fill="#f08aa0"/>
+  <path d="M46 69 l-14 -2 M46 72 l-13 3 M74 69 l14 -2 M74 72 l13 3" stroke="${o}" stroke-width="1" opacity=".5"/></svg>`}
+function cheer(n=1){if(S.user.settings?.cats===false)return;document.querySelectorAll('.cheer').forEach(e=>e.remove());
+  const el=document.createElement('div');el.className='cheer';el.setAttribute('aria-hidden','true');
+  const start=Math.random()*3|0;el.innerHTML=Array.from({length:n},(_,i)=>kittenSvg(start+i)).join('');
+  document.body.append(el);setTimeout(()=>el.remove(),1900)}
 
 // ================= Aussprache =================
 function speak(text,lang){
@@ -643,12 +685,14 @@ function vProfile(){
     <label class="lbl" for="pn">Anzeigename</label><input id="pn" maxlength="40" placeholder="${esc(S.email.split('@')[0])}" value="${esc(S.user.settings?.name||'')}">
     <button id="out" style="justify-self:start">Abmelden</button></div>
   <div class="panel"><span class="lbl">Einstellungen</span>
-    <label class="toggle" for="aa"><span>Begriffe bei Karteikarten automatisch vorlesen</span><input type="checkbox" id="aa" ${st.autoAudio?'checked':''}></label></div>
+    <label class="toggle" for="aa"><span>Begriffe bei Karteikarten automatisch vorlesen</span><input type="checkbox" id="aa" ${st.autoAudio?'checked':''}></label>
+    <label class="toggle" for="cats"><span>Jubelnde Kätzchen bei richtigen Antworten</span><input type="checkbox" id="cats" ${st.cats!==false?'checked':''}></label></div>
   <div class="panel"><span class="lbl">Sicherung</span>
     <p class="small muted" style="margin:0">Deine Daten liegen auf dem Server und als Kopie auf diesem Gerät. Zusätzlich kannst du eine Sicherungsdatei mit allen Lernsets und deinem Lernstand speichern.</p>
     <div class="row"><button id="exp">Sicherung herunterladen</button><label class="btn" for="impf">Sicherung einspielen</label><input type="file" id="impf" accept=".json,application/json" hidden></div></div>
   <details class="small muted"><summary>So funktioniert das Wiederholen</summary><p>Jeder Begriff startet in Fach 1. Richtig beantwortet wandert er ein Fach weiter und ist später wieder fällig (Fach 2: nach 1 Tag, 3: 2 Tage, 4: 4 Tage, 5: 8 Tage, danach alle 16 Tage). Falsch beantwortet fällt er zurück in Fach 1. Karteikarten, Lernen und Wiederholen zählen dafür.</p></details>`;
   $('#aa').onchange=e=>{st.autoAudio=e.target.checked;qUser()};
+  $('#cats').onchange=e=>{st.cats=e.target.checked;qUser();if(st.cats)cheer(3)};
   $('#avf').onchange=e=>{const f=e.target.files[0];if(f)uploadAvatar(f);e.target.value=''};
   $('#avrm')&&($('#avrm').onclick=removeAvatar);
   $('#pn').onchange=e=>{st.name=e.target.value.trim();qUser();render()};
@@ -862,13 +906,13 @@ function vFlash(){
     v.deck=cards.map(c=>({id:c.id,rev:dirRev(v.dir)}));v.i=0;v.know=[];v.learn=[];v.hist=[];touchStudy(s.id,v.srs?'srs':'flash')}
   const title=v.srs?'Wiederholen':'Karteikarten';
   if(v.phase==='done'){
-    const k=v.know.length,l=v.learn.length;
+    const k=v.know.length,l=v.learn.length;if(!v.cheered&&v.track&&!l&&k){v.cheered=true;cheer(3)}
     app.innerHTML=`${studyHead(title,s)}<h2>${l?'Gut gemacht! Weiter so.':'Du kennst alle Karten!'}</h2>
     <div class="stats"><div class="panel"><span class="lbl">Weißt du</span><b style="font-family:var(--f-display);font-size:1.8rem;color:var(--ok)">${k}</b></div><div class="panel"><span class="lbl">Lernst du noch</span><b style="font-family:var(--f-display);font-size:1.8rem;color:var(--warn)">${l}</b></div><div class="panel"><span class="lbl">Gesamt</span><b style="font-family:var(--f-display);font-size:1.8rem">${k+l}</b></div></div>
     <div class="row">${l?`<button class="primary" id="again">Mit ${l} Karten weiterüben</button>`:''}<button id="restart">Karten zurücksetzen</button><button id="tolearn">Im Modus „Lernen“ üben</button><button class="ghost" id="fin">Fertig</button></div>`;
     bindQuit(s.id);
     $('#again')&&($('#again').onclick=()=>{const ids=v.learn;Object.assign(v,{deck:shuffle(ids).map(id=>({id,rev:dirRev(v.dir)})),i:0,know:[],learn:[],hist:[],phase:'run'});render()});
-    $('#restart').onclick=()=>{v.deck=null;v.phase='run';render()};$('#tolearn').onclick=()=>startMode(s.id,'learn');$('#fin').onclick=()=>go({name:'set',sid:s.id});return}
+    $('#restart').onclick=()=>{v.deck=null;v.phase='run';v.cheered=false;render()};$('#tolearn').onclick=()=>startMode(s.id,'learn');$('#fin').onclick=()=>go({name:'set',sid:s.id});return}
   const it=v.deck[v.i],c=s.cards.find(x=>x.id===it.id);if(!c){v.i++;if(v.i>=v.deck.length)v.phase='done';return render()}
   const total=v.deck.length;
   app.innerHTML=`${studyHead(title,s,`<button class="icon" id="opts" aria-label="Optionen">⚙︎</button>`)}
@@ -923,7 +967,7 @@ function vLearn(){
   const lvOf=id=>cp(s.id,id).lv||0;
   if(v.phase==='summary'||v.phase==='done'){
     const m=pool.filter(c=>lvOf(c.id)>=2).length,l=pool.filter(c=>lvOf(c.id)===1||(lvOf(c.id)===0&&cp(s.id,c.id).seen)).length,nn=pool.length-m-l;
-    const done=v.phase==='done';
+    const done=v.phase==='done';if(v.cheerKey!==v.phase+v.round){v.cheerKey=v.phase+v.round;cheer(done?3:2)}
     app.innerHTML=`${studyHead('Lernen',s)}<h2>${done?'Alles beherrscht!':'Runde '+v.round+' geschafft'}</h2>
     <div class="bar3" style="height:10px"><span class="m" style="width:${m/pool.length*100}%"></span><span class="l" style="width:${l/pool.length*100}%"></span></div>
     <div class="stats"><div class="panel"><span class="lbl">Beherrscht</span><b style="font-family:var(--f-display);font-size:1.6rem;color:var(--ok)">${m}</b></div><div class="panel"><span class="lbl">Lernst du gerade</span><b style="font-family:var(--f-display);font-size:1.6rem;color:var(--warn)">${l}</b></div><div class="panel"><span class="lbl">Noch nicht gelernt</span><b style="font-family:var(--f-display);font-size:1.6rem">${nn}</b></div></div>
@@ -965,7 +1009,7 @@ function vLearn(){
     $('#fb').innerHTML=`<div class="fb ${cls}"><strong>${st.right?['Super!','Richtig!','Weiter so!','Genau!'][Math.random()*4|0]:r&&r.res==='typo'?'Fast. Tippfehler?':'Noch nicht ganz.'}</strong>
       ${r&&r.msg?`<span class="small">${esc(r.msg)}</span>`:''}${!st.right||type==='write'?`<span>Richtig: <strong>${esc(sd.ans)}</strong></span>`:''}${sd.ansImg&&!st.right?imgTag(sd.ansImg,'thumb'):''}</div>
       <div class="row" style="margin-top:8px"><button class="primary" id="next">Weiter</button>${!st.right&&type==='write'?'<button class="ghost" id="ovr">Ich hatte recht</button>':''}</div>`;
-    hydrateImgs();
+    hydrateImgs();if(st.right&&!st.cheered){st.cheered=true;cheer(1)}
     $('#next').focus();$('#next').onclick=()=>commit(st.right);$('#ovr')&&($('#ovr').onclick=()=>commit(true));
   }
   function commit(right){const cc=cp(s.id,c.id);
@@ -1017,7 +1061,7 @@ function vTest(){
       gradeTest(v,s);v.phase='result';go(v)};return}
   // Ergebnis
   const qs=v.qs,ok=qs.filter(q=>q.ok).length,pct=Math.round(ok/qs.length*100),secs=Math.round((v.t1-v.t0)/1000);
-  const R=46,C=2*Math.PI*R;
+  const R=46,C=2*Math.PI*R;if(!v.cheered){v.cheered=true;if(pct>=70)cheer(pct>=90?3:2)}
   app.innerHTML=`${studyHead('Test',s)}<h2>${pct>=90?'Hervorragend!':pct>=70?'Gut gemacht!':pct>=50?'Auf einem guten Weg':'Da geht noch was'}</h2>
   <div class="panel score"><svg class="ring" viewBox="0 0 110 110" role="img" aria-label="${pct} Prozent richtig"><circle cx="55" cy="55" r="${R}" fill="none" stroke="var(--line)" stroke-width="10"/>${pct?'':'<!--'}<circle cx="55" cy="55" r="${R}" fill="none" stroke="${pct>=70?'var(--ok)':pct>=50?'var(--warn)':'var(--bad)'}" stroke-width="10" stroke-linecap="round" stroke-dasharray="${C*pct/100} ${C}" transform="rotate(-90 55 55)"/>${pct?'':'-->'}<text x="55" y="62" text-anchor="middle" fill="var(--fg)" style="font:700 22px var(--f-display)">${pct}%</text></svg>
     <div style="display:grid;gap:4px"><span><strong style="color:var(--ok)">${ok} richtig</strong> · <strong style="color:var(--bad)">${qs.length-ok} falsch</strong></span><span class="small muted">Dauer: ${Math.floor(secs/60)} Min. ${secs%60} Sek.</span></div></div>
@@ -1028,7 +1072,7 @@ function vTest(){
     return`<section class="panel res ${q.ok?'':'no'}"><span class="num small muted">${i+1} · ${q.ok?'Richtig':'Falsch'}</span><strong>${esc(sd.ask)}</strong>
     ${q.type==='tf'?`<span class="small">Aussage: ${esc(q.shown)}</span>`:''}<span class="small">Deine Antwort: ${yours}</span>${q.ok?'':`<span class="small">Richtig: <strong>${q.type==='tf'?(q.truth?'Wahr':'Falsch')+' – '+esc(sd.ans):esc(sd.ans)}</strong></span>`}</section>`}).join('')}`;
   bindQuit(s.id);
-  $('#newt').onclick=()=>{v.phase='setup';v.warned=false;render()};$('#fin').onclick=()=>go({name:'set',sid:s.id});
+  $('#newt').onclick=()=>{v.phase='setup';v.warned=false;v.cheered=false;render()};$('#fin').onclick=()=>go({name:'set',sid:s.id});
   $('#wrongs')&&($('#wrongs').onclick=()=>startMode(s.id,'flash',{ids:qs.filter(q=>!q.ok).map(q=>q.id),dir:v.dir}));
 }
 function buildTest(v,s,pool){
@@ -1068,7 +1112,7 @@ function vMatch(){
     if(v.sel===t.i){v.sel=null;b.classList.remove('sel');return}
     const a=v.tiles[v.sel],ab=app.querySelector(`.tile[data-i="${v.sel}"]`);v.sel=null;ab.classList.remove('sel');
     if(a.k===t.k){ab.classList.add('gone');b.classList.add('gone');v.left--;
-      if(!v.left){v.time=performance.now()-v.t0+v.pen*1000;v.newBest=!p.best||v.time<p.best;if(v.newBest){p.best=Math.round(v.time);qProg(s.id)}v.phase='done';render()}}
+      if(!v.left){v.time=performance.now()-v.t0+v.pen*1000;v.newBest=!p.best||v.time<p.best;if(v.newBest){p.best=Math.round(v.time);qProg(s.id)}v.phase='done';render();cheer(v.newBest?3:2)}}
     else{v.pen++;[ab,b].forEach(x=>{x.classList.remove('bad');void x.offsetWidth;x.classList.add('bad')});setTimeout(()=>[ab,b].forEach(x=>x.classList.remove('bad')),350)}});
   hydrateImgs();
 }
