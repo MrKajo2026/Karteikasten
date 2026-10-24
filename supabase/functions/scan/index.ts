@@ -47,7 +47,13 @@ Regeln:
 - Mehrere Übersetzungen in einer Zelle mit ", " trennen.
 - Lautschrift, Seitenzahlen, Überschriften, Lektionstitel und Beispielsätze weglassen, sofern sie nicht Teil der Übersetzung sind.
 - Nichts erfinden. Unleserliche Paare weglassen.
-Antworte ausschließlich mit JSON ohne weiteren Text: {"pairs":[{"term":"...","definition":"..."}]}`;
+- Übernimm die Spalten so, wie sie gedruckt sind. Tausche nichts eigenmächtig.
+Prüfe danach JEDES Paar selbst:
+- "term_lang" und "def_lang": tatsächliche Sprache des jeweiligen Eintrags als ISO-639-1-Code (z. B. "en", "de"), unabhängig davon, in welcher Spalte er stand.
+- "unsicher": true, wenn ein Eintrag schwer lesbar war, abgeschnitten ist, zwei Zeilen vermischt sein könnten oder Begriff und Definition nicht zusammenpassen; sonst false.
+- "hinweis": bei unsicher=true ein kurzer Grund auf Deutsch, sonst "".
+Antworte ausschließlich mit JSON ohne weiteren Text:
+{"pairs":[{"term":"...","definition":"...","term_lang":"en","def_lang":"de","unsicher":false,"hinweis":""}]}`;
 
   // 3) Claude aufrufen
   const r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -78,8 +84,13 @@ Antworte ausschließlich mit JSON ohne weiteren Text: {"pairs":[{"term":"...","d
   try {
     const parsed = JSON.parse(m ? m[0] : text);
     const pairs = (Array.isArray(parsed.pairs) ? parsed.pairs : [])
-      .filter((p: { term?: unknown; definition?: unknown }) => p && p.term && p.definition)
-      .map((p: { term: unknown; definition: unknown }) => ({ term: String(p.term), definition: String(p.definition) }));
+      .filter((p: { term?: unknown; definition?: unknown }) => p && (p.term || p.definition))
+      .map((p: Record<string, unknown>) => ({
+        term: String(p.term ?? ""), definition: String(p.definition ?? ""),
+        term_lang: typeof p.term_lang === "string" ? p.term_lang.toLowerCase().slice(0, 2) : null,
+        def_lang: typeof p.def_lang === "string" ? p.def_lang.toLowerCase().slice(0, 2) : null,
+        unsicher: p.unsicher === true, hinweis: typeof p.hinweis === "string" ? p.hinweis.slice(0, 140) : "",
+      }));
     return json({ pairs });
   } catch {
     return json({ error: "Antwort konnte nicht gelesen werden. Bitte erneut versuchen." }, 502);
