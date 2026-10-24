@@ -115,6 +115,8 @@ input,textarea,select{font:inherit;color:var(--fg);background:var(--surface);bor
 .rev{display:grid;gap:6px}
 .rev .r{display:grid;grid-template-columns:auto 1fr 1fr;gap:6px;align-items:center}
 .rev .r input[type=checkbox]{width:20px;height:20px}
+.rev .flag{grid-column:2/-1;font-size:.78rem;color:var(--muted);margin-top:-2px}
+.rev .flag.dup{color:var(--bad)}
 .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line)}
 .tabs button{border:0;border-bottom:3px solid transparent;border-radius:0;background:transparent;padding:8px 10px}
 .tabs button[aria-selected=true]{border-bottom-color:var(--ink);color:var(--ink)}
@@ -231,7 +233,18 @@ function boxCounts(set){const b=[0,0,0,0,0];set.cards.forEach(c=>b[(c.box||1)-1]
 function sortedSets(){return Object.entries(S.sets).sort((a,b)=>(b[1].updated||0)-(a[1].updated||0))}
 function newSet(name){const id=uid();S.sets[id]={name,from:'Englisch',to:'Deutsch',created:now(),updated:now(),cards:[]};markDirty(id);return id}
 function touch(id){S.sets[id].updated=now();markDirty(id)}
-function addCards(id,pairs){const set=S.sets[id];pairs.forEach(p=>{const t=(p.term||'').trim(),d=(p.definition||'').trim();if(t&&d)set.cards.push({id:uid(),t,d,box:1,due:0,ok:0,no:0})});touch(id)}
+// Dubletten: gleiches Wort UND gleiche Übersetzung (Groß/Klein und Leerzeichen egal)
+const ckey=(t,d)=>(String(t)+'\u0000'+String(d)).toLowerCase().replace(/\s+/g,' ').trim();
+const tkey=t=>String(t).toLowerCase().replace(/\s+/g,' ').trim();
+function addCards(id,pairs){const set=S.sets[id];const have=new Set(set.cards.map(c=>ckey(c.t,c.d)));let added=0,skipped=0;
+  pairs.forEach(p=>{const t=(p.term||'').trim(),d=(p.definition||'').trim();if(!t||!d)return;const k=ckey(t,d);
+    if(have.has(k)){skipped++;return}have.add(k);set.cards.push({id:uid(),t,d,box:1,due:0,ok:0,no:0});added++});
+  if(added)touch(id);return{added,skipped}}
+function findDups(set){const seen=new Map(),dup=[];
+  set.cards.forEach(c=>{const k=ckey(c.t,c.d),o=seen.get(k);if(!o){seen.set(k,c);return}
+    // die Karte mit mehr Lernfortschritt behalten
+    if((c.box||1)>(o.box||1)){dup.push(o);seen.set(k,c)}else dup.push(c)});return dup}
+function addMsg(r){return r.added+' Vokabeln hinzugefügt'+(r.skipped?`, ${r.skipped} doppelte übersprungen`:'')}
 function grade(set,card,right){
   if(right){card.box=Math.min(5,(card.box||1)+1);card.ok=(card.ok||0)+1;card.due=now()+INTERVALS[card.box]*DAY}
   else{card.box=1;card.no=(card.no||0)+1;card.due=0}
@@ -326,7 +339,7 @@ function renderSet(){
   <div class="row"><span class="lbl grow">Vokabeln</span>${n?`<input id="filter" placeholder="Suchen" style="max-width:200px">`:''}</div>
   <div class="cards" id="cards">${n?'':`<div class="card" style="grid-template-columns:1fr"><span class="muted small">Noch keine Vokabeln. Fotografiere eine Seite oder füge sie einzeln hinzu.</span></div>`}</div>
   <div class="panel"><div class="lbl">Lernset verwalten</div>
-    <div class="row"><button id="reset" ${n?'':'disabled'}>Lernstand zurücksetzen</button><button class="danger" id="del">Lernset löschen</button></div>
+    <div class="row"><button id="dedupe" ${findDups(s).length?'':'disabled'}>Doppelte entfernen${findDups(s).length?' ('+findDups(s).length+')':''}</button><button id="reset" ${n?'':'disabled'}>Lernstand zurücksetzen</button><button class="danger" id="del">Lernset löschen</button></div>
     <div id="confirm"></div></div>`;
   drawCards(id);
   $('#back').onclick=()=>go({name:'home'});
@@ -338,13 +351,14 @@ function renderSet(){
   $('#photo').onclick=()=>go({name:'import',id,files:[],rows:null});
   $('#addone').onclick=()=>{$('#addform').hidden=false;$('#at').focus()};
   const add=()=>{const t=$('#at').value.trim(),d=$('#ad').value.trim();if(!t||!d){(t?$('#ad'):$('#at')).focus();return}
-    addCards(id,[{term:t,definition:d}]);$('#at').value='';$('#ad').value='';drawCards(id);$('#at').focus()};
+    const r=addCards(id,[{term:t,definition:d}]);if(r.skipped)toast('„'+t+'“ ist mit dieser Übersetzung schon im Set.');$('#at').value='';$('#ad').value='';drawCards(id);$('#at').focus()};
   $('#addok').onclick=add;$('#ad').onkeydown=e=>{if(e.key==='Enter')add()};$('#at').onkeydown=e=>{if(e.key==='Enter')$('#ad').focus()};
   $('#paste').onclick=()=>{$('#pasteform').hidden=false;$('#pt').focus()};
   $('#ptok').onclick=()=>{const pairs=$('#pt').value.split('\n').map(l=>{const m=l.split(/\t|;| - | – /);return m.length>=2?{term:m[0],definition:m.slice(1).join(', ')}:null}).filter(Boolean);
     if(!pairs.length){toast('Keine Zeile erkannt. Trenne Wort und Übersetzung mit Tab oder Semikolon.');return}
-    addCards(id,pairs);toast(pairs.length+' Vokabeln hinzugefügt');render()};
+    toast(addMsg(addCards(id,pairs)));render()};
   $('#filter')&&($('#filter').oninput=e=>drawCards(id,e.target.value));
+  $('#dedupe').onclick=()=>{const d=findDups(s);confirmBox(`${d.length} doppelte Vokabeln entfernen? Behalten wird jeweils die Karte mit dem höheren Fach.`,'Entfernen',()=>{const ids=new Set(d.map(c=>c.id));s.cards=s.cards.filter(c=>!ids.has(c.id));touch(id);render();toast(d.length+' Doppelte entfernt')})};
   $('#reset').onclick=()=>confirmBox('Lernstand aller Vokabeln auf Fach 1 zurücksetzen?','Zurücksetzen',()=>{s.cards.forEach(c=>{c.box=1;c.due=0;c.ok=0;c.no=0});touch(id);render();toast('Lernstand zurückgesetzt')});
   $('#del').onclick=()=>confirmBox(`„${s.name}“ mit ${n} Vokabeln endgültig löschen?`,'Endgültig löschen',()=>{delete S.sets[id];markDirty(id);go({name:'home'});toast('Lernset gelöscht')});
 }
@@ -423,8 +437,12 @@ async function scan(){
     }
   }
   if(!rows.length){st.textContent='Keine Vokabeln erkannt. Versuche ein schärferes Foto.';btn.disabled=false;return}
-  const have=new Set(s.cards.map(c=>c.t.toLowerCase()));
-  rows.forEach(r=>{if(have.has(r.term.toLowerCase())){r.on=false;r.dup=true}});
+  const have=new Set(s.cards.map(c=>ckey(c.t,c.d))),terms=new Set(s.cards.map(c=>tkey(c.t))),batch=new Set();
+  rows.forEach(r=>{const k=ckey(r.term,r.definition);
+    if(have.has(k)){r.on=false;r.dup='im Set'}
+    else if(batch.has(k)){r.on=false;r.dup='doppelt im Import'}
+    else if(terms.has(tkey(r.term)))r.note='Wort schon im Set, andere Übersetzung';
+    batch.add(k)});
   v.rows=rows;renderImport();
 }
 function drawReview(){
@@ -432,12 +450,12 @@ function drawReview(){
   const r=$('#review');
   const dups=rows.filter(x=>x.dup).length;
   r.innerHTML=`<div class="panel"><div class="row"><h3 class="grow">${rows.length} Vokabeln erkannt</h3><button class="ghost" id="again">Neue Fotos</button></div>
-  <p class="small muted" style="margin:0">Bitte prüfen: Die Erkennung kann Fehler machen. Korrigiere direkt im Feld, entferne den Haken bei falschen Zeilen.${dups?` ${dups} Vokabeln sind schon im Set und wurden abgewählt.`:''}</p>
-  <div class="rev">${rows.map((x,i)=>`<div class="r"><input type="checkbox" id="ck${i}" ${x.on?'checked':''} aria-label="Übernehmen"><input class="t" id="rt${i}" value="${esc(x.term)}" aria-label="${esc(s.from)}"><input class="d" id="rd${i}" value="${esc(x.definition)}" aria-label="${esc(s.to)}"></div>`).join('')}</div>
+  <p class="small muted" style="margin:0">Bitte prüfen: Die Erkennung kann Fehler machen. Korrigiere direkt im Feld, entferne den Haken bei falschen Zeilen.${dups?` <strong>${dups} doppelte Vokabeln</strong> wurden erkannt und abgewählt.`:''}</p>
+  <div class="rev">${rows.map((x,i)=>`<div class="r"><input type="checkbox" id="ck${i}" ${x.on?'checked':''} aria-label="Übernehmen"><input class="t" id="rt${i}" value="${esc(x.term)}" aria-label="${esc(s.from)}"><input class="d" id="rd${i}" value="${esc(x.definition)}" aria-label="${esc(s.to)}">${x.dup||x.note?`<span class="flag ${x.dup?'dup':''}">${esc(x.dup?'Doppelt ('+x.dup+')':x.note)}</span>`:''}</div>`).join('')}</div>
   <div class="row"><button class="primary" id="take">Ausgewählte übernehmen</button></div></div>`;
   rows.forEach((x,i)=>{$('#ck'+i).onchange=e=>x.on=e.target.checked;$('#rt'+i).oninput=e=>x.term=e.target.value;$('#rd'+i).oninput=e=>x.definition=e.target.value});
   $('#again').onclick=()=>go({name:'import',id:v.id,files:[],rows:null});
-  $('#take').onclick=()=>{const sel=rows.filter(x=>x.on);addCards(v.id,sel);toast(sel.length+' Vokabeln hinzugefügt');go({name:'set',id:v.id})};
+  $('#take').onclick=()=>{const sel=rows.filter(x=>x.on);toast(addMsg(addCards(v.id,sel)));go({name:'set',id:v.id})};
 }
 
 // ---------- learning ----------
