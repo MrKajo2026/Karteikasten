@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1f4fd1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Karteikasten</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+/* Layout: one narrow column like a card box; sticky header, sets as index-card tabs, Leitner compartments 1–5 as the recurring motif */
+:root{
+  --bg:#eef2f6; --surface:#ffffff; --line:#d5dde6; --fg:#16202b; --muted:#5b6a7a;
+  --ink:#1f4fd1; --ink-soft:#e3eafc; --mark:#f5d547; --ok:#1d8a55; --ok-soft:#dcf2e6; --bad:#c23b3b; --bad-soft:#fbe3e3;
+  --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --f-body:"Atkinson Hyperlegible",ui-sans-serif,system-ui,sans-serif;
+  --r:10px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f141b; --surface:#18202a; --line:#2a3542; --fg:#e8eef5; --muted:#93a2b3;
+  --ink:#7ea2ff; --ink-soft:#1d2a4a; --mark:#e2c341; --ok:#4cc58a; --ok-soft:#163626; --bad:#ff7b7b; --bad-soft:#3d1c1c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f141b; --surface:#18202a; --line:#2a3542; --fg:#e8eef5; --muted:#93a2b3;
+  --ink:#7ea2ff; --ink-soft:#1d2a4a; --mark:#e2c341; --ok:#4cc58a; --ok-soft:#163626; --bad:#ff7b7b; --bad-soft:#3d1c1c; color-scheme:dark}
+*,*::before,*::after{box-sizing:border-box}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+[hidden]{display:none!important}
+img{max-width:100%}
+html,body{background:var(--bg);color:var(--fg)}
+body{font:16px/1.5 var(--f-body);margin:0}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+.wrap{max-width:720px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 48px;display:flex;flex-direction:column;gap:16px}
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+header .in{max-width:720px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:10px;display:flex;align-items:center;gap:12px}
+h1,h2,h3{font-family:var(--f-display);font-weight:700;text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:1.3rem;letter-spacing:-.01em}
+h2{font-size:1.6rem}
+h3{font-size:1.1rem}
+.logo{display:flex;gap:3px;align-items:flex-end}
+.logo i{display:block;width:5px;background:var(--ink);border-radius:2px}
+.status{margin-left:auto;font-size:.8rem;color:var(--muted)}
+.muted{color:var(--muted)}
+.small{font-size:.85rem}
+.lbl{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}
+button,.btn{font:inherit;font-weight:700;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--fg);padding:9px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;justify-content:center}
+button:hover{border-color:var(--ink)}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+button.primary{background:var(--ink);border-color:var(--ink);color:var(--surface)}
+button.ghost{border-color:transparent;background:transparent;padding:6px 8px}
+button.danger{color:var(--bad);border-color:var(--bad)}
+button:disabled{opacity:.45;cursor:not-allowed}
+input,textarea,select{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%;min-width:0}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.grow{flex:1;min-width:0}
+.banner{border:1px solid var(--line);border-left:4px solid var(--mark);background:var(--surface);border-radius:var(--r);padding:12px 14px;font-size:.92rem}
+.banner.err{border-left-color:var(--bad)}
+/* set list */
+.sets{display:grid;gap:12px}
+.set{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:grid;gap:10px;cursor:pointer;text-align:left;font-weight:400}
+.set:hover{border-color:var(--ink)}
+.set .top{display:flex;gap:10px;align-items:baseline}
+.set .top h3{flex:1;min-width:0;overflow-wrap:anywhere}
+.due{font-size:.8rem;font-weight:700;padding:2px 8px;border-radius:99px;background:var(--mark);color:#1b1b1b;white-space:nowrap}
+.due.zero{background:var(--ok-soft);color:var(--ok)}
+.boxes{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.boxes div{display:grid;gap:2px;font-size:.7rem;color:var(--muted);text-align:center;font-variant-numeric:tabular-nums}
+.boxes b{display:block;height:6px;border-radius:3px;background:var(--line);overflow:hidden;position:relative}
+.boxes b span{position:absolute;inset:0 auto 0 0;background:var(--ink)}
+.empty{border:2px dashed var(--line);border-radius:var(--r);padding:28px 20px;text-align:center;display:grid;gap:12px;justify-items:center}
+/* set detail */
+.modes{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.mode{display:grid;gap:2px;text-align:left;justify-content:start;padding:12px 14px;font-weight:400}
+.mode strong{font-family:var(--f-display);font-size:1.05rem}
+.mode.hl{border-color:var(--ink);background:var(--ink-soft)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:grid;gap:12px}
+.cards{display:grid;gap:0;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);overflow:hidden}
+.card{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;padding:10px 12px;border-top:1px solid var(--line);align-items:start}
+.card:first-child{border-top:0}
+.card .t,.card .d{min-width:0;overflow-wrap:anywhere}
+.card .t{font-weight:700}
+.card .bx{font-size:.72rem;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.card.edit{grid-template-columns:1fr 1fr;}
+.card.edit .acts{grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end}
+.confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--bad-soft);border-radius:8px;padding:8px 10px}
+/* learn */
+.progress{height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+.progress span{display:block;height:100%;background:var(--ink);transition:width .25s}
+.flash{perspective:1200px;min-height:260px;cursor:pointer}
+.flash .inner{position:relative;min-height:260px;transition:transform .45s;transform-style:preserve-3d}
+.flash.flipped .inner{transform:rotateY(180deg)}
+.face{position:absolute;inset:0;backface-visibility:hidden;background:var(--surface);border:1px solid var(--line);border-radius:14px;display:grid;place-items:center;padding:24px;text-align:center;
+  background-image:repeating-linear-gradient(transparent 0 31px,var(--ink-soft) 31px 32px);background-position:0 56px}
+.face .w{font-family:var(--f-display);font-size:clamp(1.4rem,5vw,2.1rem);font-weight:700;overflow-wrap:anywhere;max-width:100%}
+.face .lbl{position:absolute;top:14px;left:16px}
+.face.back{transform:rotateY(180deg)}
+.face.back::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--mark);border-radius:14px 0 0 14px}
+@media (prefers-reduced-motion:reduce){.flash .inner,.progress span{transition:none}}
+.prompt{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:24px;text-align:center;display:grid;gap:6px}
+.prompt .w{font-family:var(--f-display);font-size:clamp(1.4rem,5vw,2rem);font-weight:700;overflow-wrap:anywhere}
+.opts{display:grid;gap:8px}
+.opt{justify-content:flex-start;text-align:left;font-weight:400;padding:12px 14px}
+.opt.right{background:var(--ok-soft);border-color:var(--ok);color:var(--fg)}
+.opt.wrong{background:var(--bad-soft);border-color:var(--bad);color:var(--fg)}
+.fb{border-radius:var(--r);padding:12px 14px;display:grid;gap:6px}
+.fb.ok{background:var(--ok-soft)}
+.fb.no{background:var(--bad-soft)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.stat{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
+.stat div{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px}
+.stat b{display:block;font-family:var(--f-display);font-size:1.8rem;font-variant-numeric:tabular-nums}
+/* import */
+.drop{border:2px dashed var(--line);border-radius:var(--r);padding:20px;text-align:center;display:grid;gap:8px;justify-items:center}
+.thumbs{display:flex;gap:8px;flex-wrap:wrap}
+.thumbs img{width:72px;height:96px;object-fit:cover;border-radius:6px;border:1px solid var(--line)}
+.rev{display:grid;gap:6px}
+.rev .r{display:grid;grid-template-columns:auto 1fr 1fr;gap:6px;align-items:center}
+.rev .r input[type=checkbox]{width:20px;height:20px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line)}
+.tabs button{border:0;border-bottom:3px solid transparent;border-radius:0;background:transparent;padding:8px 10px}
+.tabs button[aria-selected=true]{border-bottom-color:var(--ink);color:var(--ink)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:.9rem;z-index:20;max-width:calc(100% - 32px)}
+@media (max-width:480px){.modes{grid-template-columns:1fr}.card{grid-template-columns:1fr auto}.card .d{grid-column:1}.card .side{grid-row:1/3;grid-column:2}.card.edit{grid-template-columns:1fr}.rev .r{grid-template-columns:auto 1fr}.rev .r input.d{grid-column:2}}
+</style>
+</head>
+<body>
+<header><div class="in">
+  <div class="logo" aria-hidden="true"><i style="height:10px"></i><i style="height:14px"></i><i style="height:18px"></i><i style="height:22px"></i><i style="height:26px"></i></div>
+  <h1>Karteikasten</h1>
+  <span class="status" id="status" aria-live="polite">Verbinde…</span>
+  <button class="ghost small" id="logout" hidden>Abmelden</button>
+</div></header>
+<main class="wrap" id="app"></main>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+// ===== KONFIGURATION: hier deine Supabase-Werte eintragen (Project Settings → API) =====
+const SUPABASE_URL='https://xhbocgunjbrnyrzjsysx.supabase.co';
+const SUPABASE_KEY='sb_publishable_hg0dmW8eAhQyHMt8Vuhufw_4MvX6dCQ';
+// =====================================================================================
+
+// ---------- constants ----------
+const INTERVALS=[0,1,2,4,8,16]; // Tage bis zur nächsten Abfrage je Fach 1–5
+const DAY=86400000;
+const S={sets:{},uid:null,sb:null,imgOK:true,view:{name:'home'},dirty:new Set(),saving:false,offline:false,loaded:false};
+const $=s=>document.querySelector(s);
+const app=$('#app');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+const now=()=>Date.now();
+function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,2600)}
+function setStatus(m){$('#status').textContent=m}
+
+// ---------- persistence (Supabase + lokale Sicherheitskopie) ----------
+const cacheKey=()=>'kk-cache-'+S.uid;
+function cacheWrite(){try{localStorage.setItem(cacheKey(),JSON.stringify({sets:S.sets,dirty:[...S.dirty]}))}catch(e){}}
+function cacheRead(){try{return JSON.parse(localStorage.getItem(cacheKey())||'null')}catch(e){return null}}
+let saveTimer;
+function markDirty(id){S.dirty.add(id);if(S.uid)cacheWrite();setStatus('Ungespeichert…');clearTimeout(saveTimer);saveTimer=setTimeout(flush,700)}
+async function flush(){
+  if(!S.sb||!S.uid){setStatus('Nicht gespeichert');return}
+  if(S.saving){saveTimer=setTimeout(flush,400);return}
+  if(!S.dirty.size){setStatus('Gespeichert');return}
+  S.saving=true;setStatus('Speichere…');
+  const ids=[...S.dirty];S.dirty.clear();
+  try{
+    for(const id of ids){
+      const set=S.sets[id];
+      const {error}=set
+        ? await S.sb.from('sets').upsert({id,doc:set,updated_at:new Date().toISOString()})
+        : await S.sb.from('sets').delete().eq('id',id);
+      if(error)throw error;
+    }
+    setStatus('Gespeichert');
+  }catch(e){ids.forEach(i=>S.dirty.add(i));setStatus('Offline – wird nachgeholt');saveTimer=setTimeout(flush,5000)}
+  S.saving=false;cacheWrite();
+}
+window.addEventListener('beforeunload',e=>{if(S.dirty.size||S.saving){cacheWrite();e.preventDefault();e.returnValue=''}});
+window.addEventListener('online',()=>flush());
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='hidden'){cacheWrite();flush()}
+  else if(S.uid&&!S.dirty.size&&!S.saving&&['home','set'].includes(S.view.name))loadSets();
+});
+
+async function loadSets(){
+  const {data,error}=await S.sb.from('sets').select('id,doc');
+  if(error){setStatus('Offline');toast('Server nicht erreichbar. Du arbeitest mit der lokalen Kopie; Änderungen werden nachgeholt.');return}
+  const remote={};data.forEach(r=>remote[r.id]=r.doc);
+  for(const id of S.dirty){if(S.sets[id])remote[id]=S.sets[id];else delete remote[id]} // ungespeicherte lokale Änderungen gewinnen
+  S.sets=remote;S.loaded=true;cacheWrite();
+  setStatus(S.dirty.size?'Ungespeichert…':'Gespeichert');
+  render();
+}
+async function startSession(user){
+  S.uid=user.id;$('#logout').hidden=false;
+  const c=cacheRead();
+  if(c){S.sets=c.sets||{};(c.dirty||[]).forEach(i=>S.dirty.add(i))}
+  S.view={name:'home'};render();
+  await loadSets();
+  if(S.dirty.size)flush();
+}
+function renderLogin(msg=''){
+  $('#logout').hidden=true;setStatus('');
+  app.innerHTML=`<div class="panel" style="max-width:420px;margin:24px auto;width:100%">
+    <h2>Anmelden</h2>
+    <p class="small muted" style="margin:0">Melde dich mit dem Zugang an, den du bekommen hast.</p>
+    <form id="lf" style="display:grid;gap:10px">
+      <div><label class="lbl" for="lm">E-Mail</label><input id="lm" type="email" autocomplete="username" required></div>
+      <div><label class="lbl" for="lp">Passwort</label><input id="lp" type="password" autocomplete="current-password" required></div>
+      ${msg?`<div class="banner err">${esc(msg)}</div>`:''}
+      <button class="primary" id="lb">Anmelden</button>
+    </form></div>`;
+  $('#lf').onsubmit=async e=>{e.preventDefault();$('#lb').disabled=true;
+    const {error}=await S.sb.auth.signInWithPassword({email:$('#lm').value.trim(),password:$('#lp').value});
+    if(error)renderLogin(error.message==='Invalid login credentials'?'E-Mail oder Passwort ist falsch.':error.message)};
+}
+async function init(){
+  if(!window.supabase||SUPABASE_URL.includes('DEIN-PROJEKT')){
+    app.innerHTML=`<div class="banner err"><strong>Noch nicht eingerichtet.</strong> Trage SUPABASE_URL und SUPABASE_KEY oben in index.html ein.</div>`;setStatus('');return}
+  S.sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true}});
+  $('#logout').onclick=async()=>{await flush();if(S.dirty.size){toast('Erst speichern, dann abmelden. Bitte Verbindung prüfen.');return}
+    await S.sb.auth.signOut();try{localStorage.removeItem(cacheKey())}catch(e){}S.sets={};S.uid=null;S.loaded=false;renderLogin()};
+  const {data:{session}}=await S.sb.auth.getSession();
+  if(session)startSession(session.user);else renderLogin();
+  S.sb.auth.onAuthStateChange((ev,sess)=>{if(ev==='SIGNED_IN'&&sess&&S.uid!==sess.user.id)startSession(sess.user)});
+}
+
+// ---------- helpers ----------
+function dueCards(set){const t=now();return set.cards.filter(c=>(c.due||0)<=t)}
+function boxCounts(set){const b=[0,0,0,0,0];set.cards.forEach(c=>b[(c.box||1)-1]++);return b}
+function sortedSets(){return Object.entries(S.sets).sort((a,b)=>(b[1].updated||0)-(a[1].updated||0))}
+function newSet(name){const id=uid();S.sets[id]={name,from:'Englisch',to:'Deutsch',created:now(),updated:now(),cards:[]};markDirty(id);return id}
+function touch(id){S.sets[id].updated=now();markDirty(id)}
+function addCards(id,pairs){const set=S.sets[id];pairs.forEach(p=>{const t=(p.term||'').trim(),d=(p.definition||'').trim();if(t&&d)set.cards.push({id:uid(),t,d,box:1,due:0,ok:0,no:0})});touch(id)}
+function grade(set,card,right){
+  if(right){card.box=Math.min(5,(card.box||1)+1);card.ok=(card.ok||0)+1;card.due=now()+INTERVALS[card.box]*DAY}
+  else{card.box=1;card.no=(card.no||0)+1;card.due=0}
+}
+const go=v=>{S.view=v;render();window.scrollTo(0,0)};
+
+// ---------- views ----------
+function render(){
+  const v=S.view;
+  if(v.name==='home')return renderHome();
+  if(v.name==='set')return renderSet();
+  if(v.name==='import')return renderImport();
+  if(v.name==='learn')return renderLearn();
+  if(v.name==='done')return renderDone();
+}
+function offlineBanner(){return''}
+function renderHome(){
+  const list=sortedSets();
+  const loading=!S.loaded&&!Object.keys(S.sets).length;
+  app.innerHTML=`${offlineBanner()}
+  <div class="row"><h2 class="grow">Deine Lernsets</h2><button class="primary" id="new">+ Neues Lernset</button></div>
+  <div class="panel" id="newform" hidden>
+    <label class="lbl" for="newname">Name des Lernsets</label>
+    <div class="row"><input id="newname" class="grow" placeholder="z. B. Green Line 3 – Unit 2" maxlength="80"><button class="primary" id="create">Anlegen</button><button class="ghost" id="cancelnew">Abbrechen</button></div>
+  </div>
+  ${loading?`<p class="muted">Lade Lernsets…</p>`:list.length?`<div class="sets">${list.map(([id,s])=>{
+    const due=dueCards(s).length,b=boxCounts(s),n=s.cards.length||1;
+    return`<button class="set" data-id="${id}"><div class="top"><h3>${esc(s.name)}</h3><span class="due ${due?'':'zero'}">${due?due+' fällig':'alles gelernt'}</span></div>
+    <span class="muted small">${s.cards.length} Vokabeln · ${esc(s.from)} → ${esc(s.to)}</span>
+    <div class="boxes" aria-label="Verteilung auf Fächer 1 bis 5">${b.map((c,i)=>`<div><b><span style="width:${c/n*100}%"></span></b>Fach ${i+1}: ${c}</div>`).join('')}</div></button>`}).join('')}</div>`
+  :`<div class="empty"><h3>Noch keine Lernsets</h3><p class="muted small">Lege ein Lernset an und fotografiere eine Vokabelseite aus deinem Buch. Die Vokabeln werden automatisch erkannt.</p><button class="primary" id="new2">+ Erstes Lernset anlegen</button></div>`}
+  <div class="panel">
+    <div class="lbl">Sicherung</div>
+    <p class="small muted" style="margin:0">Deine Daten liegen auf dem Server und zusätzlich als Kopie auf diesem Gerät. Zusätzlich kannst du eine Sicherungsdatei herunterladen und später wieder einspielen.</p>
+    <div class="row"><button id="exp" ${list.length?'':'disabled'}>Sicherung herunterladen</button><label class="btn" for="impfile">Sicherung einspielen</label><input type="file" id="impfile" accept=".json,application/json" hidden></div>
+  </div>
+  <details class="small muted"><summary>So funktioniert das Wiederholungssystem</summary><p>Jede Vokabel startet in Fach 1. Richtig beantwortet wandert sie ein Fach weiter und kommt später wieder dran (Fach 2: nach 1 Tag, 3: 2 Tage, 4: 4 Tage, 5: 8 Tage, danach alle 16 Tage). Falsch beantwortet fällt sie zurück in Fach 1 und ist sofort wieder fällig.</p></details>`;
+  const openNew=()=>{$('#newform').hidden=false;$('#newname').focus()};
+  $('#new').onclick=openNew;$('#new2')&&($('#new2').onclick=openNew);
+  $('#cancelnew').onclick=()=>$('#newform').hidden=true;
+  const create=()=>{const n=$('#newname').value.trim();if(!n){$('#newname').focus();return}const id=newSet(n);go({name:'set',id})};
+  $('#create').onclick=create;$('#newname').onkeydown=e=>{if(e.key==='Enter')create()};
+  app.querySelectorAll('.set').forEach(b=>b.onclick=()=>go({name:'set',id:b.dataset.id}));
+  $('#exp').onclick=exportAll;
+  $('#impfile').onchange=importBackup;
+}
+async function exportAll(){
+  const data=JSON.stringify({app:'Karteikasten',version:1,exported:new Date().toISOString(),sets:S.sets},null,1);
+  const name='karteikasten-sicherung-'+new Date().toISOString().slice(0,10)+'.json';
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));a.download=name;
+  document.body.append(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000);toast('Sicherung heruntergeladen')
+}
+async function importBackup(e){
+  const f=e.target.files[0];if(!f)return;
+  try{
+    const j=JSON.parse(await f.text());const sets=j.sets||{};let n=0;
+    for(const [id,s] of Object.entries(sets)){if(!s||!Array.isArray(s.cards))continue;
+      const nid=S.sets[id]?uid():id;S.sets[nid]={...s,updated:now()};markDirty(nid);n++}
+    toast(n+' Lernsets eingespielt');render();
+  }catch(err){toast('Die Datei ist keine gültige Sicherung.')}
+  e.target.value='';
+}
+
+function renderSet(){
+  const id=S.view.id,s=S.sets[id];
+  if(!s){go({name:'home'});return}
+  const due=dueCards(s).length,n=s.cards.length;
+  const dir=S.view.dir||'fwd';
+  app.innerHTML=`<div class="row"><button class="ghost" id="back">← Lernsets</button></div>
+  <div class="row"><h2 class="grow" id="title">${esc(s.name)}</h2><button class="ghost" id="rename" aria-label="Lernset umbenennen">Umbenennen</button></div>
+  <div class="panel" id="renameform" hidden><label class="lbl" for="rn">Neuer Name</label><div class="row"><input id="rn" class="grow" value="${esc(s.name)}" maxlength="80"><button class="primary" id="rnok">Speichern</button></div></div>
+  <span class="muted small">${n} Vokabeln · ${due} fällig</span>
+  <div class="row"><span class="lbl">Abfragen</span>
+    <select id="dir" style="width:auto"><option value="fwd" ${dir==='fwd'?'selected':''}>${esc(s.from)} → ${esc(s.to)}</option><option value="rev" ${dir==='rev'?'selected':''}>${esc(s.to)} → ${esc(s.from)}</option><option value="mix" ${dir==='mix'?'selected':''}>Gemischt</option></select>
+  </div>
+  <div class="modes">
+    <button class="mode hl" data-m="srs" ${n?'':'disabled'}><strong>Wiederholen</strong><span class="small muted">${due?due+' fällige Vokabeln nach Fächern':'Nichts fällig. Startet mit Fach 1–2'}</span></button>
+    <button class="mode" data-m="flash" ${n?'':'disabled'}><strong>Karteikarten</strong><span class="small muted">Umdrehen und selbst bewerten</span></button>
+    <button class="mode" data-m="mc" ${n>=2?'':'disabled'}><strong>Multiple Choice</strong><span class="small muted">Richtige Übersetzung auswählen</span></button>
+    <button class="mode" data-m="write" ${n?'':'disabled'}><strong>Schreiben</strong><span class="small muted">Übersetzung eintippen</span></button>
+  </div>
+  <div class="row"><button class="primary" id="photo">Seite fotografieren</button><button id="addone">+ Vokabel</button><button id="paste">Liste einfügen</button></div>
+  <div class="panel" id="addform" hidden>
+    <div class="two"><div><label class="lbl" for="at">${esc(s.from)}</label><input id="at"></div><div><label class="lbl" for="ad">${esc(s.to)}</label><input id="ad"></div></div>
+    <div class="row"><button class="primary" id="addok">Hinzufügen</button><span class="small muted">Enter fügt hinzu und öffnet die nächste Zeile.</span></div>
+  </div>
+  <div class="panel" id="pasteform" hidden>
+    <label class="lbl" for="pt">Eine Vokabel pro Zeile, getrennt durch Tab, Semikolon oder " - "</label>
+    <textarea id="pt" rows="6" placeholder="to borrow; ausleihen&#10;reliable; zuverlässig"></textarea>
+    <div class="row"><button class="primary" id="ptok">Übernehmen</button></div>
+  </div>
+  <div class="row"><span class="lbl grow">Vokabeln</span>${n?`<input id="filter" placeholder="Suchen" style="max-width:200px">`:''}</div>
+  <div class="cards" id="cards">${n?'':`<div class="card" style="grid-template-columns:1fr"><span class="muted small">Noch keine Vokabeln. Fotografiere eine Seite oder füge sie einzeln hinzu.</span></div>`}</div>
+  <div class="panel"><div class="lbl">Lernset verwalten</div>
+    <div class="row"><button id="reset" ${n?'':'disabled'}>Lernstand zurücksetzen</button><button class="danger" id="del">Lernset löschen</button></div>
+    <div id="confirm"></div></div>`;
+  drawCards(id);
+  $('#back').onclick=()=>go({name:'home'});
+  $('#rename').onclick=()=>{$('#renameform').hidden=false;$('#rn').focus()};
+  const doRn=()=>{const v=$('#rn').value.trim();if(v){s.name=v;touch(id);render()}};
+  $('#rnok').onclick=doRn;$('#rn').onkeydown=e=>{if(e.key==='Enter')doRn()};
+  $('#dir').onchange=e=>{S.view.dir=e.target.value};
+  app.querySelectorAll('.mode').forEach(b=>b.onclick=()=>startLearn(id,b.dataset.m,$('#dir').value));
+  $('#photo').onclick=()=>go({name:'import',id,files:[],rows:null});
+  $('#addone').onclick=()=>{$('#addform').hidden=false;$('#at').focus()};
+  const add=()=>{const t=$('#at').value.trim(),d=$('#ad').value.trim();if(!t||!d){(t?$('#ad'):$('#at')).focus();return}
+    addCards(id,[{term:t,definition:d}]);$('#at').value='';$('#ad').value='';drawCards(id);$('#at').focus()};
+  $('#addok').onclick=add;$('#ad').onkeydown=e=>{if(e.key==='Enter')add()};$('#at').onkeydown=e=>{if(e.key==='Enter')$('#ad').focus()};
+  $('#paste').onclick=()=>{$('#pasteform').hidden=false;$('#pt').focus()};
+  $('#ptok').onclick=()=>{const pairs=$('#pt').value.split('\n').map(l=>{const m=l.split(/\t|;| - | – /);return m.length>=2?{term:m[0],definition:m.slice(1).join(', ')}:null}).filter(Boolean);
+    if(!pairs.length){toast('Keine Zeile erkannt. Trenne Wort und Übersetzung mit Tab oder Semikolon.');return}
+    addCards(id,pairs);toast(pairs.length+' Vokabeln hinzugefügt');render()};
+  $('#filter')&&($('#filter').oninput=e=>drawCards(id,e.target.value));
+  $('#reset').onclick=()=>confirmBox('Lernstand aller Vokabeln auf Fach 1 zurücksetzen?','Zurücksetzen',()=>{s.cards.forEach(c=>{c.box=1;c.due=0;c.ok=0;c.no=0});touch(id);render();toast('Lernstand zurückgesetzt')});
+  $('#del').onclick=()=>confirmBox(`„${s.name}“ mit ${n} Vokabeln endgültig löschen?`,'Endgültig löschen',()=>{delete S.sets[id];markDirty(id);go({name:'home'});toast('Lernset gelöscht')});
+}
+function confirmBox(msg,label,fn){
+  const c=$('#confirm');c.innerHTML=`<div class="confirm"><span class="grow small">${esc(msg)}</span><button class="danger" id="cy">${esc(label)}</button><button class="ghost" id="cn">Abbrechen</button></div>`;
+  $('#cy').onclick=fn;$('#cn').onclick=()=>c.innerHTML='';
+}
+function drawCards(id,q=''){
+  const s=S.sets[id],box=$('#cards');if(!s.cards.length)return;
+  const ql=q.toLowerCase();
+  const list=s.cards.filter(c=>!ql||c.t.toLowerCase().includes(ql)||c.d.toLowerCase().includes(ql));
+  box.innerHTML=list.map(c=>`<div class="card" data-c="${c.id}"><span class="t">${esc(c.t)}</span><span class="d">${esc(c.d)}</span>
+   <span class="side row" style="flex-wrap:nowrap;gap:2px"><span class="bx">Fach ${c.box||1}</span><button class="ghost small" data-e="${c.id}" aria-label="Bearbeiten">✎</button><button class="ghost small" data-x="${c.id}" aria-label="Löschen">✕</button></span></div>`).join('')||`<div class="card" style="grid-template-columns:1fr"><span class="muted small">Keine Treffer.</span></div>`;
+  box.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>{
+    const c=s.cards.find(x=>x.id===b.dataset.e),row=b.closest('.card');
+    row.className='card edit';
+    row.innerHTML=`<input id="et-${c.id}" value="${esc(c.t)}" aria-label="${esc(s.from)}"><input id="ed-${c.id}" value="${esc(c.d)}" aria-label="${esc(s.to)}"><div class="acts"><button class="ghost" data-cancel>Abbrechen</button><button class="primary" data-ok>Speichern</button></div>`;
+    const save=()=>{const t=$('#et-'+c.id).value.trim(),d=$('#ed-'+c.id).value.trim();if(t&&d){c.t=t;c.d=d;touch(id)}drawCards(id,q)};
+    row.querySelector('[data-ok]').onclick=save;row.querySelector('[data-cancel]').onclick=()=>drawCards(id,q);
+    row.querySelectorAll('input').forEach(i=>i.onkeydown=e=>{if(e.key==='Enter')save()});
+    $('#et-'+c.id).focus();
+  });
+  box.querySelectorAll('[data-x]').forEach(b=>b.onclick=()=>{
+    const i=s.cards.findIndex(x=>x.id===b.dataset.x);const [rm]=s.cards.splice(i,1);touch(id);drawCards(id,q);
+    undoToast('„'+rm.t+'“ gelöscht',()=>{s.cards.splice(i,0,rm);touch(id);drawCards(id,q)});
+  });
+}
+function undoToast(msg,undo){
+  const t=$('#toast');t.innerHTML=`${esc(msg)} <button class="ghost" style="color:inherit;text-decoration:underline">Rückgängig</button>`;t.hidden=false;
+  t.querySelector('button').onclick=()=>{undo();t.hidden=true};clearTimeout(toast.t);toast.t=setTimeout(()=>t.hidden=true,5000);
+}
+
+// ---------- photo import ----------
+function renderImport(){
+  const v=S.view,s=S.sets[v.id];
+  const can=true;
+  app.innerHTML=`<div class="row"><button class="ghost" id="back">← ${esc(s.name)}</button></div>
+  <h2>Seite fotografieren</h2>
+  ${v.rows?'':`<div class="drop">
+    <p style="margin:0"><strong>Fotografiere die Vokabelliste</strong> oder wähle Fotos aus. Mehrere Seiten auf einmal gehen auch.</p>
+    <p class="small muted" style="margin:0">Tipp: gerade von oben, gutes Licht, beide Spalten vollständig im Bild.</p>
+    <label class="btn primary" for="pics" style="background:var(--ink);color:var(--surface);border-color:var(--ink)">Fotos wählen</label>
+    <input type="file" id="pics" accept="image/*" multiple hidden ${can?'':'disabled'}>
+    <div class="thumbs" id="thumbs"></div>
+  </div>
+  <div class="row"><button class="primary" id="scan" ${v.files.length&&can?'':'disabled'}>Vokabeln erkennen</button><span class="small muted" id="scanst"></span></div>`}
+  <div id="review"></div>`;
+  $('#back').onclick=()=>go({name:'set',id:v.id});
+  if(v.rows)return drawReview();
+  const th=$('#thumbs');v.files.forEach(f=>{const i=new Image();i.src=URL.createObjectURL(f);i.alt='Foto';th.append(i)});
+  $('#pics').onchange=e=>{v.files=[...v.files,...e.target.files];renderImport()};
+  $('#scan').onclick=scan;
+}
+async function shrink(file){
+  const bmp=await createImageBitmap(file);
+  const max=2000,k=Math.min(1,max/Math.max(bmp.width,bmp.height));
+  const cv=document.createElement('canvas');cv.width=Math.round(bmp.width*k);cv.height=Math.round(bmp.height*k);
+  cv.getContext('2d').drawImage(bmp,0,0,cv.width,cv.height);
+  const lim=3.5e6;let q=.85,b;
+  do{b=await new Promise(r=>cv.toBlob(r,'image/jpeg',q));q-=.15}while(b.size>lim&&q>.2);
+  return b;
+}
+async function scan(){
+  const v=S.view,s=S.sets[v.id];const btn=$('#scan'),st=$('#scanst');btn.disabled=true;
+  const rows=[];
+  for(let i=0;i<v.files.length;i++){
+    st.textContent=`Lese Foto ${i+1} von ${v.files.length}…`;
+    try{
+      const img=await shrink(v.files[i]);
+      const image=await new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]);r.onerror=no;r.readAsDataURL(img)});
+      const {data:res,error}=await S.sb.functions.invoke('smart-service',{body:{image,mediaType:'image/jpeg',from:s.from,to:s.to}});
+      if(error){let m=error.message;try{m=(await error.context.json()).error||m}catch(_){}throw {message:m}}
+      (res?.pairs||[]).forEach(p=>p&&p.term&&p.definition&&rows.push({term:String(p.term),definition:String(p.definition),on:true}));
+    }catch(e){
+      toast(`Foto ${i+1}: ${e.message||'Erkennung fehlgeschlagen'}`);
+    }
+  }
+  if(!rows.length){st.textContent='Keine Vokabeln erkannt. Versuche ein schärferes Foto.';btn.disabled=false;return}
+  const have=new Set(s.cards.map(c=>c.t.toLowerCase()));
+  rows.forEach(r=>{if(have.has(r.term.toLowerCase())){r.on=false;r.dup=true}});
+  v.rows=rows;renderImport();
+}
+function drawReview(){
+  const v=S.view,s=S.sets[v.id],rows=v.rows;
+  const r=$('#review');
+  const dups=rows.filter(x=>x.dup).length;
+  r.innerHTML=`<div class="panel"><div class="row"><h3 class="grow">${rows.length} Vokabeln erkannt</h3><button class="ghost" id="again">Neue Fotos</button></div>
+  <p class="small muted" style="margin:0">Bitte prüfen: Die Erkennung kann Fehler machen. Korrigiere direkt im Feld, entferne den Haken bei falschen Zeilen.${dups?` ${dups} Vokabeln sind schon im Set und wurden abgewählt.`:''}</p>
+  <div class="rev">${rows.map((x,i)=>`<div class="r"><input type="checkbox" id="ck${i}" ${x.on?'checked':''} aria-label="Übernehmen"><input class="t" id="rt${i}" value="${esc(x.term)}" aria-label="${esc(s.from)}"><input class="d" id="rd${i}" value="${esc(x.definition)}" aria-label="${esc(s.to)}"></div>`).join('')}</div>
+  <div class="row"><button class="primary" id="take">Ausgewählte übernehmen</button></div></div>`;
+  rows.forEach((x,i)=>{$('#ck'+i).onchange=e=>x.on=e.target.checked;$('#rt'+i).oninput=e=>x.term=e.target.value;$('#rd'+i).oninput=e=>x.definition=e.target.value});
+  $('#again').onclick=()=>go({name:'import',id:v.id,files:[],rows:null});
+  $('#take').onclick=()=>{const sel=rows.filter(x=>x.on);addCards(v.id,sel);toast(sel.length+' Vokabeln hinzugefügt');go({name:'set',id:v.id})};
+}
+
+// ---------- learning ----------
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a}
+function startLearn(id,mode,dir){
+  const s=S.sets[id];let pool;
+  if(mode==='srs'){
+    pool=dueCards(s);
+    if(!pool.length)pool=s.cards.filter(c=>(c.box||1)<=2);
+    if(!pool.length)pool=[...s.cards].sort((a,b)=>(a.due||0)-(b.due||0)).slice(0,20);
+    pool=shuffle(pool).sort((a,b)=>(a.box||1)-(b.box||1)).slice(0,30);
+  }else pool=shuffle([...s.cards]);
+  const q=pool.map(c=>({id:c.id,rev:dir==='rev'||(dir==='mix'&&Math.random()<.5)}));
+  S.view={name:'learn',id,mode:mode==='srs'?'write-or-flash':mode,real:mode,dir,q,total:q.length,i:0,right:0,wrong:0,missed:new Set(),first:new Set(),state:null};
+  if(mode==='srs')S.view.mode='flash';
+  render();
+}
+function current(){const v=S.view,s=S.sets[v.id];const it=v.q[v.i];if(!it)return null;const c=s.cards.find(x=>x.id===it.id);if(!c)return null;
+  return{c,ask:it.rev?c.d:c.t,ans:it.rev?c.t:c.d,askL:it.rev?s.to:s.from,ansL:it.rev?s.from:s.to,rev:it.rev}}
+function answer(right){
+  const v=S.view,s=S.sets[v.id],cur=current();
+  // Lernstand nur beim ersten Versuch je Karte pro Runde zählen
+  if(!v.first.has(cur.c.id)){v.first.add(cur.c.id);grade(s,cur.c,right);touch(v.id);if(right)v.right++;else v.wrong++}
+  if(!right){v.missed.add(cur.c.id);v.q.push({...v.q[v.i]})} // falsche Karten kommen am Ende der Runde nochmal
+  v.i++;v.state=null;
+  if(v.i>=v.q.length){v.name='done'}
+  render();
+}
+function header(){
+  const v=S.view,s=S.sets[v.id];const done=Math.min(v.first.size,v.total);
+  const label={srs:'Wiederholen',flash:'Karteikarten',mc:'Multiple Choice',write:'Schreiben'}[v.real];
+  return`<div class="row"><button class="ghost" id="quit">✕ Beenden</button><span class="grow small muted" style="text-align:right">${esc(label)} · ${esc(s.name)}</span></div>
+  <div class="row small muted"><span class="grow">${done} von ${v.total}</span><span style="color:var(--ok)">✓ ${v.right}</span><span style="color:var(--bad)">✕ ${v.wrong}</span></div>
+  <div class="progress"><span style="width:${done/v.total*100}%"></span></div>`;
+}
+function renderLearn(){
+  const v=S.view,cur=current();
+  if(!cur){v.i++;if(v.i>=v.q.length){v.name='done'};return render()}
+  if(v.mode==='flash')learnFlash(cur);else if(v.mode==='mc')learnMC(cur);else learnWrite(cur);
+  $('#quit').onclick=()=>go({name:'set',id:v.id,dir:v.dir});
+}
+function learnFlash(cur){
+  app.innerHTML=`${header()}
+  <div class="flash" id="fc" tabindex="0" role="button" aria-label="Karte umdrehen"><div class="inner">
+    <div class="face"><span class="lbl">${esc(cur.askL)}</span><span class="w">${esc(cur.ask)}</span></div>
+    <div class="face back"><span class="lbl">${esc(cur.ansL)}</span><span class="w">${esc(cur.ans)}</span></div></div></div>
+  <p class="small muted" style="text-align:center;margin:0" id="hint">Tippen oder Leertaste zum Umdrehen</p>
+  <div class="two" id="rate" hidden><button class="danger" id="no">Nicht gewusst</button><button class="primary" id="yes" style="background:var(--ok);border-color:var(--ok)">Gewusst</button></div>`;
+  const fc=$('#fc');const flip=()=>{fc.classList.toggle('flipped');$('#rate').hidden=false;$('#hint').hidden=true};
+  fc.onclick=flip;
+  $('#yes').onclick=()=>answer(true);$('#no').onclick=()=>answer(false);
+  document.onkeydown=e=>{if(S.view.name!=='learn'||S.view.mode!=='flash')return;
+    if(e.key===' '&&document.activeElement.tagName!=='BUTTON'){e.preventDefault();flip()}
+    else if(!$('#rate').hidden&&(e.key==='ArrowRight'||e.key==='2'))answer(true);
+    else if(!$('#rate').hidden&&(e.key==='ArrowLeft'||e.key==='1'))answer(false)};
+}
+function learnMC(cur){
+  const v=S.view,s=S.sets[v.id];
+  if(!v.state){
+    const others=shuffle(s.cards.filter(c=>c.id!==cur.c.id).map(c=>cur.rev?c.t:c.d).filter(x=>x!==cur.ans));
+    v.state={opts:shuffle([cur.ans,...[...new Set(others)].slice(0,3)]),picked:null};
+  }
+  const st=v.state;
+  app.innerHTML=`${header()}
+  <div class="prompt"><span class="lbl">${esc(cur.askL)}</span><span class="w">${esc(cur.ask)}</span></div>
+  <div class="opts">${st.opts.map((o,i)=>{let cls='';if(st.picked!=null){if(o===cur.ans)cls='right';else if(i===st.picked)cls='wrong'}
+    return`<button class="opt ${cls}" data-i="${i}" ${st.picked!=null?'disabled':''}><span class="muted small">${i+1}</span> ${esc(o)}</button>`}).join('')}</div>
+  ${st.picked!=null?`<button class="primary" id="next">Weiter</button>`:''}`;
+  app.querySelectorAll('.opt').forEach(b=>b.onclick=()=>pick(+b.dataset.i));
+  function pick(i){if(st.picked!=null)return;st.picked=i;const ok=st.opts[i]===cur.ans;
+    if(ok){render();setTimeout(()=>{if(S.view.state===st)answer(true)},650)}else{render()}}
+  $('#next')&&($('#next').onclick=()=>answer(st.opts[st.picked]===cur.ans),$('#next').focus());
+  document.onkeydown=e=>{if(S.view.name!=='learn'||S.view.mode!=='mc')return;const n=+e.key;if(n>=1&&n<=st.opts.length&&st.picked==null)pick(n-1)};
+}
+// Antwortprüfung: Groß/Klein, Satzzeichen, "to", Artikel, Alternativen
+const ART=/^(to|the|a|an|der|die|das|ein|eine|einen|sich)\s+/;
+function norm(s){return s.toLowerCase().replace(/\([^)]*\)|\[[^\]]*\]/g,'').replace(/[.!?¡¿"„“”'’]/g,'').replace(/\s+/g,' ').trim()}
+function core(s){let x=norm(s),p;do{p=x;x=x.replace(ART,'')}while(x!==p);return x}
+function alts(s){return s.split(/[,;\/]/).map(x=>x.trim()).filter(Boolean)}
+function lev(a,b){const m=[...Array(b.length+1).keys()];for(let i=1;i<=a.length;i++){let p=m[0];m[0]=i;for(let j=1;j<=b.length;j++){const t=m[j];m[j]=Math.min(m[j]+1,m[j-1]+1,p+(a[i-1]===b[j-1]?0:1));p=t}}return m[b.length]}
+function check(input,ans){
+  const inp=norm(input);if(!inp)return{res:'no'};
+  const full=[ans,...alts(ans)];
+  if(full.some(a=>norm(a)===inp))return{res:'ok'};
+  if(full.some(a=>core(a)===core(input)&&core(a)))return{res:'almost',msg:'Richtig. Achte auf den vollständigen Eintrag (Artikel bzw. „to“).'};
+  if(full.some(a=>{const c=core(a);return c.length>4&&lev(c,core(input))<=1}))return{res:'typo'};
+  return{res:'no'};
+}
+function learnWrite(cur){
+  const v=S.view;
+  if(!v.state)v.state={done:false,input:'',r:null};
+  const st=v.state;
+  app.innerHTML=`${header()}
+  <div class="prompt"><span class="lbl">${esc(cur.askL)}</span><span class="w">${esc(cur.ask)}</span></div>
+  <form id="wf" class="row"><label class="lbl" for="win" style="width:100%">Übersetzung (${esc(cur.ansL)})</label>
+    <input id="win" class="grow" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(st.input)}" ${st.done?'disabled':''}>
+    ${st.done?'':`<button class="primary">Prüfen</button><button type="button" class="ghost" id="dunno">Weiß ich nicht</button>`}</form>
+  ${st.done?feedback(cur,st):''}`;
+  if(!st.done){$('#win').focus();
+    $('#wf').onsubmit=e=>{e.preventDefault();st.input=$('#win').value;if(!st.input.trim()){$('#win').focus();return}st.r=check(st.input,cur.ans);st.done=true;render()};
+    $('#dunno').onclick=()=>{st.input='';st.r={res:'no'};st.done=true;render()};
+  }else{
+    const ok=st.r.res==='ok'||st.r.res==='almost';
+    $('#next').onclick=()=>answer(ok);$('#next').focus();
+    $('#override')&&($('#override').onclick=()=>answer(true));
+  }
+}
+function feedback(cur,st){
+  const ok=st.r.res==='ok'||st.r.res==='almost';
+  return`<div class="fb ${ok?'ok':'no'}"><strong>${ok?'Richtig':st.r.res==='typo'?'Fast. Tippfehler?':'Leider falsch'}</strong>
+    ${st.r.msg?`<span class="small">${esc(st.r.msg)}</span>`:''}
+    ${ok&&st.r.res==='ok'?'':`<span>Lösung: <strong>${esc(cur.ans)}</strong></span>`}</div>
+  <div class="row"><button class="primary" id="next">Weiter</button>${ok?'':`<button class="ghost" id="override">Ich hatte recht</button>`}</div>`;
+}
+function renderDone(){
+  const v=S.view,s=S.sets[v.id];
+  const missed=s.cards.filter(c=>v.missed.has(c.id));
+  app.innerHTML=`<h2>Runde geschafft</h2>
+  <div class="stat"><div><b>${v.total}</b><span class="small muted">Vokabeln</span></div><div><b style="color:var(--ok)">${v.right}</b><span class="small muted">beim 1. Versuch richtig</span></div><div><b style="color:var(--bad)">${v.wrong}</b><span class="small muted">zurück in Fach 1</span></div></div>
+  ${missed.length?`<div class="panel"><div class="lbl">Diese solltest du nochmal ansehen</div><div class="cards">${missed.map(c=>`<div class="card"><span class="t">${esc(c.t)}</span><span class="d">${esc(c.d)}</span><span></span></div>`).join('')}</div></div>`:''}
+  <div class="row"><button class="primary" id="again">Nochmal (${esc({srs:'Wiederholen',flash:'Karteikarten',mc:'Multiple Choice',write:'Schreiben'}[v.real])})</button>${missed.length?`<button id="miss">Nur die Fehler üben</button>`:''}<button class="ghost" id="back">Zum Lernset</button></div>`;
+  $('#again').onclick=()=>startLearn(v.id,v.real,v.dir);
+  $('#back').onclick=()=>go({name:'set',id:v.id,dir:v.dir});
+  $('#miss')&&($('#miss').onclick=()=>{const ids=[...v.missed];startLearn(v.id,v.real==='srs'?'write':v.real,v.dir);const nv=S.view;nv.q=nv.q.filter(x=>ids.includes(x.id));nv.total=nv.q.length;render()});
+}
+
+init();
+</script>
+</body>
+</html>
