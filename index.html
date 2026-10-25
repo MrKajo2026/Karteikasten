@@ -351,7 +351,9 @@ async function flush(){
     if(p.delSets.length){await chunked(p.delSets,100,r=>sb.from('sets').delete().in('id',r));p.delSets.forEach(id=>S.server.delete(id))}
     setStatus(pending()?'Speichere…':'Gespeichert');
   }catch(e){
-    if(e&&e.code==='42501'){toast('Keine Berechtigung mehr für diese Änderung. Lade neu…');S.saving=false;cacheWrite();loadAll();return}
+    if(e&&e.code==='42501'){p.sets.forEach(x=>P.sets.add(x));p.cards.forEach(x=>{if(!P.delCards.has(x))P.cards.add(x)});p.delCards.forEach(x=>{if(!P.cards.has(x))P.delCards.add(x)});p.delSets.forEach(x=>P.delSets.add(x));p.prog.forEach(x=>P.prog.add(x));if(p.user)P.user=true;
+      S.saving=false;cacheWrite();setStatus('Nicht gespeichert');toast('Speichern vom Server abgelehnt. Deine Änderungen bleiben auf diesem Gerät und werden später erneut gesendet.');
+      clearTimeout(saveTimer);saveTimer=setTimeout(flush,60000);return}
     if(e&&(e.status===401||/jwt|token|unauthori/i.test(e.message||''))){const r=await S.sb.auth.refreshSession().catch(x=>({error:x}));
       if(r.error){p.sets.forEach(x=>P.sets.add(x));p.cards.forEach(x=>P.cards.add(x));p.delCards.forEach(x=>P.delCards.add(x));p.delSets.forEach(x=>P.delSets.add(x));p.prog.forEach(x=>P.prog.add(x));if(p.user)P.user=true;
         S.saving=false;cacheWrite();S.uid=null;renderLogin('Deine Anmeldung ist abgelaufen. Bitte neu anmelden – deine Änderungen sind auf diesem Gerät gesichert.');return}}

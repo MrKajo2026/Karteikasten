@@ -6,4 +6,5 @@ Vokabeltrainer mit Lernsets, Ordnern, Suche, Foto-Import, Karteikarten (Wischen)
 - `supabase/setup.sql` – Grundtabelle (Version 1)
 - `supabase/setup-v2.sql` – Update für Version 2: Karten, Lernstand pro Person, Teilen, Ordner, Bilder
 - `supabase/setup-v3.sql` – Profilbilder
+- `supabase/setup-v4.sql` – Korrektur: neue Lernsets anlegen
 - `supabase/functions/scan/index.ts` – Fotoerkennung (in Supabase als Funktion `smart-service` deployt)
