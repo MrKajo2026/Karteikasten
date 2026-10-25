@@ -41,7 +41,7 @@ h1,h2,h3{font-family:var(--f-display);font-weight:400;text-wrap:balance;margin:0
 h1{font-size:1.25rem}
 h2{font-size:2rem}
 h3{font-size:1.3rem}
-.hello{font-size:2.3rem;line-height:1.08;font-weight:350}
+.hello{font-size:1.85rem;line-height:1.15;font-weight:350}
 .hello em{color:var(--ink)}
 .brand{border:0;background:transparent;padding:4px 6px 4px 0;display:flex;gap:10px;align-items:center;color:inherit;border-radius:12px;font-weight:400}
 .brand:hover{border-color:transparent}
@@ -260,7 +260,7 @@ button.me{padding:0;border:0;background:transparent;border-radius:50%}
   .erow{grid-template-columns:22px minmax(0,1fr) auto}.erow .dcol{grid-column:2}.erow .side{grid-row:1/3;grid-column:3}.erow .imgbox{grid-column:2}
   .opts{grid-template-columns:1fr}
   .rev .r{grid-template-columns:auto 1fr}.rev .r input.d{grid-column:2}
-  .hello{font-size:2.35rem}
+  .hello{font-size:1.65rem}
 }
 @media (min-width:640px){.mgrid{grid-template-columns:repeat(4,1fr)}}
 </style>
@@ -706,8 +706,8 @@ function vHome(){
   const goal=goalOf(),done=todayCount(),left=Math.max(0,goal-done);
   const pz=Object.entries(S.paused||{}).filter(([k,p])=>S.sets[p.v.sid]).sort((a,b)=>b[1].ts-a[1].ts)[0];
   const sc=studied&&counts(studied),sn=studied&&studied.cards.length;
-  app.innerHTML=`<div style="display:grid;gap:10px;padding-top:6px"><span class="lbl">${esc(dateStr)}</span>
-    <h2 class="hello">${greet},<br><em>${esc(displayName())}.</em></h2></div>
+  app.innerHTML=`<div style="display:grid;gap:4px"><span class="lbl">${esc(dateStr)}</span>
+    <h2 class="hello">${greet}, <em>${esc(displayName())}.</em></h2></div>
   ${all.length?`<section class="panel daily">${ringSvg(done/goal)}<div style="display:grid;gap:2px"><span class="lbl">Tagesziel</span>
     <strong style="font-size:1.08rem">${done>=goal?`Geschafft – ${done} Begriffe`:`${done} von ${goal} Begriffen`}</strong>
     <span class="small muted">${done>=goal?'Alles darüber ist Bonus.':`Noch ${left} – etwa ${Math.max(1,Math.round(left*0.25))} Min.`}</span></div></section>`:''}
