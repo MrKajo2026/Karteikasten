@@ -43,6 +43,8 @@ h2{font-size:2rem}
 h3{font-size:1.3rem}
 .hello{font-size:2.3rem;line-height:1.08;font-weight:350}
 .hello em{color:var(--ink)}
+.brand{border:0;background:transparent;padding:4px 6px 4px 0;display:flex;gap:10px;align-items:center;color:inherit;border-radius:12px;font-weight:400}
+.brand:hover{border-color:transparent}
 .logo{display:flex;gap:2px;align-items:flex-end}
 .logo i{display:block;width:3px;background:var(--ink);border-radius:2px}
 .status{margin-left:auto;font-size:.75rem;color:var(--muted);white-space:nowrap;letter-spacing:.02em}
@@ -265,8 +267,8 @@ button.me{padding:0;border:0;background:transparent;border-radius:50%}
 </head>
 <body>
 <header><div class="in">
-  <div class="logo" aria-hidden="true"><i style="height:8px"></i><i style="height:11px"></i><i style="height:14px"></i><i style="height:17px"></i><i style="height:20px"></i></div>
-  <h1>Karteikasten</h1>
+  <button class="brand" id="brand" aria-label="Zur Startseite"><span class="logo" aria-hidden="true"><i style="height:8px"></i><i style="height:11px"></i><i style="height:14px"></i><i style="height:17px"></i><i style="height:20px"></i></span>
+  <h1>Karteikasten</h1></button>
   <span class="status" id="status" aria-live="polite"></span>
   <button class="me" id="me" hidden aria-label="Profil"></button>
 </div></header>
@@ -314,7 +316,7 @@ function shuffle(a){a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.random()
 
 // ================= Persistenz =================
 const cacheKey=()=>'kk2-'+S.uid;
-function cacheWrite(){if(!S.uid)return;try{localStorage.setItem(cacheKey(),JSON.stringify({sets:S.sets,prog:S.prog,user:S.user,server:[...S.server],
+function cacheWrite(){if(!S.uid)return;try{localStorage.setItem(cacheKey(),JSON.stringify({sets:S.sets,prog:S.prog,user:S.user,server:[...S.server],paused:S.paused||{},
   P:{sets:[...P.sets],cards:[...P.cards],delCards:[...P.delCards],delSets:[...P.delSets],prog:[...P.prog],user:P.user}}))}catch(e){}}
 function cacheRead(){try{return JSON.parse(localStorage.getItem(cacheKey())||'null')}catch(e){return null}}
 const pending=()=>P.sets.size+P.cards.size+P.delCards.size+P.delSets.size+P.prog.size+(P.user?1:0);
@@ -350,16 +352,19 @@ async function flush(){
     setStatus(pending()?'Speichere…':'Gespeichert');
   }catch(e){
     if(e&&e.code==='42501'){toast('Keine Berechtigung mehr für diese Änderung. Lade neu…');S.saving=false;cacheWrite();loadAll();return}
+    if(e&&(e.status===401||/jwt|token|unauthori/i.test(e.message||''))){const r=await S.sb.auth.refreshSession().catch(x=>({error:x}));
+      if(r.error){p.sets.forEach(x=>P.sets.add(x));p.cards.forEach(x=>P.cards.add(x));p.delCards.forEach(x=>P.delCards.add(x));p.delSets.forEach(x=>P.delSets.add(x));p.prog.forEach(x=>P.prog.add(x));if(p.user)P.user=true;
+        S.saving=false;cacheWrite();S.uid=null;renderLogin('Deine Anmeldung ist abgelaufen. Bitte neu anmelden – deine Änderungen sind auf diesem Gerät gesichert.');return}}
     p.sets.forEach(x=>P.sets.add(x));p.cards.forEach(x=>{if(!P.delCards.has(x))P.cards.add(x)});p.delCards.forEach(x=>{if(!P.cards.has(x))P.delCards.add(x)});p.delSets.forEach(x=>P.delSets.add(x));p.prog.forEach(x=>P.prog.add(x));if(p.user)P.user=true;
     setStatus('Offline – wird nachgeholt');clearTimeout(saveTimer);saveTimer=setTimeout(flush,6000);
   }
   S.saving=false;cacheWrite();
   if(pending()&&!saveTimer)saveTimer=setTimeout(flush,400);
 }
-window.addEventListener('beforeunload',e=>{cacheWrite();if(pending()||S.saving){e.preventDefault();e.returnValue=''}});
+window.addEventListener('beforeunload',e=>{if(S.view&&STUDY.includes(S.view.name))parkStudy();cacheWrite();if(pending()||S.saving){e.preventDefault();e.returnValue=''}});
 window.addEventListener('online',()=>flush());
 document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='hidden'){cacheWrite();flush()}
+  if(document.visibilityState==='hidden'){if(S.view&&STUDY.includes(S.view.name))parkStudy();cacheWrite();flush()}
   else if(S.uid&&!pending()&&!S.saving&&['home','library','folder','set','profile'].includes(S.view.name))loadAll(true);
 });
 
@@ -604,8 +609,37 @@ async function removeAvatar(){const {error}=await S.sb.storage.from('avatars').r
 
 // ================= Navigation =================
 const NAV_VIEWS=['home','library','folder','profile','set'];
-const go=v=>{closeSheet();S.view=v;render();window.scrollTo(0,0)};
+const STUDY=['flash','learn','test','match'];
+const pkey=v=>v.sid+':'+(v.name==='flash'&&v.srs?'srs':v.name);
+const sameView=(a,b)=>a&&b&&a.name===b.name&&a.sid===b.sid&&a.fid===b.fid;
+function resumable(v){if(!STUDY.includes(v.name)||v.name==='match'||v.ids)return false;
+  if(v.name==='flash')return v.phase==='run'&&v.deck&&v.i>0&&v.i<v.deck.length;
+  if(v.name==='learn')return v.phase==='q'||v.phase==='summary';
+  if(v.name==='test')return v.phase==='run'&&v.qs&&v.qs.some(q=>q.a!=null&&q.a!=='');return false}
+const snap=v=>JSON.parse(JSON.stringify(v,(k,x)=>x instanceof Set?{__set:[...x]}:x));
+const unsnap=o=>JSON.parse(JSON.stringify(o),(k,x)=>x&&typeof x==='object'&&Array.isArray(x.__set)?new Set(x.__set):x);
+function parkStudy(v=S.view){if(!STUDY.includes(v.name)||!v.sid)return;S.paused=S.paused||{};const k=pkey(v);
+  if(resumable(v))S.paused[k]={ts:now(),v:snap({...v,pausedAt:now()})};else delete S.paused[k];cacheWrite()}
+function pausedFor(sid,mode){const p=S.paused&&S.paused[sid+':'+mode];return p&&S.sets[sid]?p:null}
+function pauseInfo(v){if(v.name==='flash')return`Karte ${Math.min(v.i+1,v.deck.length)} von ${v.deck.length}`;
+  if(v.name==='learn')return`Runde ${v.round}`;if(v.name==='test')return`${v.qs.filter(q=>q.a!=null&&q.a!=='').length} von ${v.qs.length} beantwortet`;return''}
+S.hist=[];
+function go(v,o={}){closeSheet();const cur=S.view;
+  if(cur&&STUDY.includes(cur.name))parkStudy(cur);
+  if(STUDY.includes(v.name)&&S.paused)delete S.paused[pkey(v)];
+  if(!o.back&&cur&&S.uid){
+    if(v.name==='home')S.hist=[];
+    else{let idx=-1;for(let i=S.hist.length-1;i>=0;i--)if(sameView(S.hist[i],v)){idx=i;break}
+      if(idx>=0)S.hist=S.hist.slice(0,idx);
+      else if(!STUDY.includes(cur.name)&&!sameView(cur,v)&&!sameView(S.hist[S.hist.length-1],cur)){S.hist.push(cur);if(S.hist.length>40)S.hist.shift()}}
+    try{history.pushState({kk:1},'')}catch(e){}}
+  S.view=v;render();window.scrollTo(0,0)}
+function goBack(){if(S.hist.length)history.back();else go({name:'home'})}
+window.addEventListener('popstate',()=>{if(!S.uid)return;
+  if($('#sheet').innerHTML){closeSheet();try{history.pushState({kk:1},'')}catch(e){}return}
+  const prev=S.hist.pop();if(prev)go(prev,{back:true});else if(S.view.name!=='home')go({name:'home'},{back:true})});
 document.querySelectorAll('[data-nav]').forEach(b=>b.onclick=()=>{const n=b.dataset.nav;if(n==='create')return openCreate();go({name:n})});
+$('#brand').onclick=()=>{if(S.uid)go({name:'home'})};
 function render(){
   document.onkeydown=null;
   const v=S.view,showNav=S.uid&&NAV_VIEWS.includes(v.name);
@@ -659,7 +693,7 @@ function setCard(s,wide){const n=s.cards.length,c=counts(s),last=S.prog[s.id]?.l
   return`<button class="set" data-set="${s.id}"><div class="top"><h3>${esc(s.name)}</h3>${isOwner(s)?'':'<span class="chip">Geteilt</span>'}</div>
   <span class="small muted">${n} Begriffe${last?` · zuletzt ${esc(MODE_NAMES[last.mode]||'')}`:''}</span>
   <div class="bar3" aria-label="${c.m} beherrscht, ${c.l} lernst du gerade"><span class="m" style="width:${n?c.m/n*100:0}%"></span><span class="l" style="width:${n?c.l/n*100:0}%"></span></div></button>`}
-function bindSetCards(){app.querySelectorAll('[data-set]').forEach(b=>b.onclick=()=>{S.backTo={...S.view,focus:false};go({name:'set',sid:b.dataset.set})})}
+function bindSetCards(){app.querySelectorAll('[data-set]').forEach(b=>b.onclick=()=>go({name:'set',sid:b.dataset.set}))}
 function vHome(){
   const all=sortedSets(),studied=all.filter(s=>lastTs(s.id)).slice(0,1)[0];
   const dueTotal=all.reduce((n,s)=>n+dueCards(s).length,0);
@@ -668,13 +702,17 @@ function vHome(){
   const h=new Date().getHours(),greet=h<11?'Guten Morgen':h<18?'Hallo':'Guten Abend';
   const dateStr=new Date().toLocaleDateString('de-DE',{weekday:'long',day:'numeric',month:'long'});
   const goal=goalOf(),done=todayCount(),left=Math.max(0,goal-done);
+  const pz=Object.entries(S.paused||{}).filter(([k,p])=>S.sets[p.v.sid]).sort((a,b)=>b[1].ts-a[1].ts)[0];
   const sc=studied&&counts(studied),sn=studied&&studied.cards.length;
   app.innerHTML=`<div style="display:grid;gap:10px;padding-top:6px"><span class="lbl">${esc(dateStr)}</span>
     <h2 class="hello">${greet},<br><em>${esc(displayName())}.</em></h2></div>
   ${all.length?`<section class="panel daily">${ringSvg(done/goal)}<div style="display:grid;gap:2px"><span class="lbl">Tagesziel</span>
     <strong style="font-size:1.08rem">${done>=goal?`Geschafft – ${done} Begriffe`:`${done} von ${goal} Begriffen`}</strong>
     <span class="small muted">${done>=goal?'Alles darüber ist Bonus.':`Noch ${left} – etwa ${Math.max(1,Math.round(left*0.25))} Min.`}</span></div></section>`:''}
-  ${studied?`<section class="cont"><span class="lbl">Weiterlernen</span><div style="display:grid;gap:4px"><h3>${esc(studied.name)}</h3>
+  ${pz?`<section class="cont"><span class="lbl">Weitermachen, wo du warst</span><div style="display:grid;gap:4px"><h3>${esc(S.sets[pz[1].v.sid].name)}</h3>
+    <span class="small muted">${esc(MODE_NAMES[pz[0].split(':')[1]]||'')} · ${esc(pauseInfo(pz[1].v))}</span></div>
+    <div class="row"><button class="primary" id="resume-p">Fortsetzen <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button><button id="openst-p">Zum Lernset</button></div></section>`
+  :studied?`<section class="cont"><span class="lbl">Weiterlernen</span><div style="display:grid;gap:4px"><h3>${esc(studied.name)}</h3>
     <span class="small muted">${esc(MODE_NAMES[S.prog[studied.id].last.mode]||'Lernen')} · ${sc.m} von ${sn} sicher</span></div>
     <div class="bar3"><span class="m" style="width:${sn?sc.m/sn*100:0}%"></span><span class="l" style="width:${sn?sc.l/sn*100:0}%"></span></div>
     <div class="row"><button class="primary" id="resume">Fortsetzen <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button><button id="openst">Zum Lernset</button></div></section>`:''}
@@ -689,7 +727,8 @@ function vHome(){
   $('#first')&&($('#first').onclick=openCreate);
   $('#seeall')&&($('#seeall').onclick=()=>go({name:'library'}));
   $('#dueall')&&($('#dueall').onclick=()=>{const s=all.find(x=>dueCards(x).length);startMode(s.id,'srs')});
-  if(studied){$('#openst').onclick=()=>go({name:'set',sid:studied.id});$('#resume').onclick=()=>startMode(studied.id,S.prog[studied.id].last.mode)}
+  if(pz){const sid=pz[1].v.sid,mode=pz[0].split(':')[1];$('#resume-p').onclick=()=>startMode(sid,mode);$('#openst-p').onclick=()=>go({name:'set',sid})}
+  else if(studied){$('#openst').onclick=()=>go({name:'set',sid:studied.id});$('#resume').onclick=()=>startMode(studied.id,S.prog[studied.id].last.mode)}
 }
 
 // ================= Bibliothek =================
@@ -722,7 +761,7 @@ function vFolder(){
   <div class="row"><h2 class="grow">${esc(f.name)}</h2><button id="addto">+ Lernsets</button><div class="menu"><button class="icon" id="fm" aria-label="Mehr">⋯</button><div class="pop" id="fpop" hidden><button data-a="ren">Umbenennen</button><button data-a="del" style="color:var(--bad)">Ordner löschen</button></div></div></div>
   <div id="fx"></div>
   ${sets.length?`<div class="sets">${sets.map(s=>setCard(s)).join('')}</div>`:`<div class="empty"><p class="muted small" style="margin:0">Dieser Ordner ist leer.</p><button class="primary" id="addto2">Lernsets hinzufügen</button></div>`}`;
-  bindSetCards();$('#back').onclick=()=>go({name:'library',tab:'folders'});
+  bindSetCards();$('#back').onclick=goBack;
   $('#fm').onclick=()=>$('#fpop').hidden=!$('#fpop').hidden;
   const pick=()=>{const all=sortedSets();openSheet(`<h3>Lernsets in „${esc(f.name)}“</h3>${all.length?`<div class="checks">${all.map(s=>`<label><input type="checkbox" value="${s.id}" ${f.sets.includes(s.id)?'checked':''}>${esc(s.name)}</label>`).join('')}</div>`:'<p class="muted">Noch keine Lernsets.</p>'}<button class="primary" id="fok">Fertig</button>`,s=>{
     $('#fok').onclick=()=>{f.sets=[...s.querySelectorAll('input:checked')].map(i=>i.value);qUser();closeSheet();render()}})};
@@ -784,7 +823,7 @@ function vSet(){
   <div id="sx"></div>
   ${n?`<div style="display:grid;gap:8px"><div class="bar3" style="height:6px"><span class="m" style="width:${c.m/n*100}%"></span><span class="l" style="width:${c.l/n*100}%"></span></div>
   <div class="stats"><button class="m" data-f="m" aria-pressed="${v.filter==='m'}"><b>${c.m}</b><span class="small">Sicher</span></button><button class="l" data-f="l" aria-pressed="${v.filter==='l'}"><b>${c.l}</b><span class="small">Im Lernen</span></button><button class="n" data-f="n" aria-pressed="${v.filter==='n'}"><b>${c.n}</b><span class="small">Neu</span></button></div></div>`:''}
-  ${n?`<div class="modes">${['learn','flash','test','match','srs'].map(m=>`<button class="mode${m==='learn'?' hero':m==='srs'?' wide':''}" data-mode="${m}" ${(m==='match'||m==='test')&&n<2?'disabled':''}>${ICONS[m]}<div><strong>${MODE_NAMES[m]}</strong><span>${{flash:'Umdrehen &amp; wischen',learn:'Adaptiv, Runde für Runde',test:'Prüfung simulieren',match:S.prog[s.id]?.best?'Bestzeit '+(S.prog[s.id].best/1000).toFixed(1).replace('.',',')+' s':'Paare auf Zeit',srs:due?due+' Begriffe heute fällig':'Heute nichts fällig'}[m]}</span></div></button>`).join('')}</div>
+  ${n?`<div class="modes">${['learn','flash','test','match','srs'].map(m=>`<button class="mode${m==='learn'?' hero':m==='srs'?' wide':''}" data-mode="${m}" ${(m==='match'||m==='test')&&n<2?'disabled':''}>${ICONS[m]}<div><strong>${MODE_NAMES[m]}</strong><span>${pausedFor(s.id,m)?'<b style="color:inherit">Fortsetzen</b> · '+esc(pauseInfo(pausedFor(s.id,m).v)):{flash:'Umdrehen &amp; wischen',learn:'Adaptiv, Runde für Runde',test:'Prüfung simulieren',match:S.prog[s.id]?.best?'Bestzeit '+(S.prog[s.id].best/1000).toFixed(1).replace('.',',')+' s':'Paare auf Zeit',srs:due?due+' Begriffe heute fällig':'Heute nichts fällig'}[m]}</span></div></button>`).join('')}</div>
   <div class="deck" id="pdeck" style="min-height:200px"></div>
   <div class="row" style="justify-content:center"><button class="icon" id="pprev" aria-label="Vorherige Karte">‹</button><span class="small muted" style="font-variant-numeric:tabular-nums">${v.pi+1} / ${n}</span><button class="icon" id="pnext" aria-label="Nächste Karte">›</button></div>
 `
@@ -793,7 +832,7 @@ function vSet(){
   <div class="row"><div class="tabs" role="tablist" style="flex:1 1 240px"><button role="tab" data-f="all" aria-selected="${v.filter==='all'}">Alle (${n})</button><button role="tab" data-f="star" aria-selected="${v.filter==='star'}">★ Markiert (${starN})</button></div>
     <select id="sort" style="width:auto" aria-label="Sortierung"><option value="orig" ${v.sort==='orig'?'selected':''}>Originalreihenfolge</option><option value="alpha" ${v.sort==='alpha'?'selected':''}>Alphabetisch</option></select></div>
   <div class="terms" id="terms"></div>`:''}`;
-  $('#back').onclick=()=>go(S.backTo&&S.backTo.name!=='set'?S.backTo:{name:'home'});
+  $('#back').onclick=goBack;
   $('#edit').onclick=()=>go({name:'edit',sid:s.id});
   $('#share').onclick=()=>openShare(s);
   $('#sm').onclick=()=>$('#spop').hidden=!$('#spop').hidden;
@@ -937,6 +976,9 @@ function vImport(){
 // ================= Lernmodi: Start =================
 function startMode(sid,mode,opts={}){
   const s=S.sets[sid];if(!s||!s.cards.length)return;
+  const pz=!opts.fresh&&!opts.ids&&pausedFor(sid,mode);
+  if(pz){const v=unsnap(pz.v);if(v.name==='test'&&v.t0&&v.pausedAt)v.t0+=now()-v.pausedAt;delete v.pausedAt;return go(v)}
+  if(opts.fresh&&S.paused)delete S.paused[sid+':'+mode];
   const base={sid,dir:opts.dir||S.user.settings?.dir||'fwd',star:!!opts.star,ids:opts.ids||null};
   if(mode==='flash')return go({name:'flash',...base,shuffle:!!opts.shuffle,track:opts.track!==false,srs:false,phase:'run'});
   if(mode==='srs')return go({name:'flash',...base,srs:true,track:true,shuffle:true,phase:'run'});
@@ -944,8 +986,12 @@ function startMode(sid,mode,opts={}){
   if(mode==='test')return go({name:'test',...base,phase:'setup'});
   if(mode==='match')return go({name:'match',...base,phase:'intro'});
 }
-function studyHead(title,s,right=''){return`<div class="studyhead"><button id="quit" aria-label="Beenden"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button><div class="grow" style="min-width:0"><strong>${esc(title)}</strong><div class="small muted" style="overflow-wrap:anywhere">${esc(s.name)}</div></div>${right}</div>`}
-const bindQuit=sid=>$('#quit').onclick=()=>{flush();go({name:'set',sid})};
+function studyHead(title,s,right=''){const v=S.view,can=['flash','learn','test'].includes(v.name)&&!v.ids&&['run','q','summary'].includes(v.phase);
+  return`<div class="studyhead"><button id="quit" aria-label="Pausieren und zurück"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button><div class="grow" style="min-width:0"><strong>${esc(title)}</strong><div class="small muted" style="overflow-wrap:anywhere">${esc(s.name)}</div></div>${right}${can?`<button class="icon" id="restart-s" aria-label="Neu starten" title="Neu starten" style="border:1px solid var(--line);background:var(--surface);width:42px;height:42px"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.5-5.8"/><path d="M4 4v4.5h4.5"/></svg></button>`:''}</div>`}
+const bindQuit=sid=>{$('#quit').onclick=()=>{flush();go({name:'set',sid})};
+  const r=$('#restart-s');if(r)r.onclick=()=>{const v=S.view,mode=v.name==='flash'&&v.srs?'srs':v.name;
+    openSheet(`<h3>Neu starten?</h3><p class="muted" style="margin:0">Die aktuelle Runde wird verworfen. Dein Lernstand (was du schon kannst) bleibt erhalten.</p><div class="row"><button class="primary" id="rs-y">Neu starten</button><button id="rs-n">Weiter üben</button></div>`,()=>{
+      $('#rs-n').onclick=closeSheet;$('#rs-y').onclick=()=>{closeSheet();S.view={name:'set',sid};if(S.paused)delete S.paused[sid+':'+mode];startMode(sid,mode,{fresh:true,dir:v.dir})}})}};
 function optionsHtml(v,s,extra=''){const starN=s.cards.filter(x=>isStar(s.id,x.id)).length;
   return`<div class="panel"><span class="lbl">Optionen</span>
   <label class="toggle" for="odir"><span>Abfragen</span><select id="odir" style="width:auto"><option value="fwd" ${v.dir==='fwd'?'selected':''}>${esc(s.from)} → ${esc(s.to)}</option><option value="rev" ${v.dir==='rev'?'selected':''}>${esc(s.to)} → ${esc(s.from)}</option><option value="mix" ${v.dir==='mix'?'selected':''}>Gemischt</option></select></label>
@@ -988,7 +1034,7 @@ function vFlash(){
   const deck=$('#deck'),fc=deck.querySelector('.fcard');bindStar(deck,s);
   const flip=()=>fc.classList.toggle('flipped');
   if(S.user.settings?.autoAudio)speak(side(s,c,it.rev).ask,side(s,c,it.rev).askL);
-  const act=know=>{if(!v.track){v.i=Math.max(0,Math.min(total,v.i+(know?1:-1)));if(v.i>=total)v.phase='done';return render()}
+  let busy=false;const act=know=>{if(busy||S.view!==v||v.phase!=='run')return;busy=true;if(!v.track){v.i=Math.max(0,Math.min(total,v.i+(know?1:-1)));if(v.i>=total)v.phase='done';return render()}
     v.hist.push({i:v.i,know,prev:JSON.stringify(cp(s.id,c.id))});(know?v.know:v.learn).push(c.id);grade(s.id,c.id,know);qProg(s.id);if(know)cheer(1);v.i++;if(v.i>=total)v.phase='done';render()};
   // Wischen (Touch, Stift, Maus): Richtung per Weg ODER Geschwindigkeit, schräg erlaubt, kein Scroll-Abbruch
   const tag=document.createElement('span');tag.className='swipe-tag';tag.hidden=true;deck.append(tag);
@@ -1105,6 +1151,7 @@ function afterQ(v,s){
 // ================= Test =================
 function vTest(){
   const v=S.view,s=S.sets[v.sid];const pool=deckCards(s,v);
+  if(v.qs){v.qs=v.qs.filter(q=>s.cards.some(c=>c.id===q.id));if(!v.qs.length&&v.phase!=='setup'){v.phase='setup';v.qs=null}}
   if(v.phase==='setup'){v.count=Math.min(v.count||20,pool.length||1);v.types=v.types||{tf:true,mc:true,write:true};
     app.innerHTML=`${studyHead('Test',s)}<h2>Test einrichten</h2>
     ${optionsHtml(v,s,`<label class="toggle" for="ocnt"><span>Anzahl Fragen (max. ${pool.length})</span><input type="number" id="ocnt" min="1" max="${pool.length}" value="${v.count}" style="width:90px"></label>
@@ -1195,7 +1242,8 @@ function vMatch(){
 async function startSession(user){
   S.uid=user.id;S.email=user.email||'';
   const c=cacheRead();
-  if(c){S.sets=c.sets||{};S.prog=c.prog||{};S.user=Object.assign({folders:[],settings:{}},c.user||{});S.server=new Set(c.server||[]);
+  S.paused={};S.hist=[];
+  if(c){S.sets=c.sets||{};S.prog=c.prog||{};S.paused=c.paused||{};S.user=Object.assign({folders:[],settings:{}},c.user||{});S.server=new Set(c.server||[]);
     const p=c.P||{};(p.sets||[]).forEach(x=>P.sets.add(x));(p.cards||[]).forEach(x=>P.cards.add(x));(p.delCards||[]).forEach(x=>P.delCards.add(x));(p.delSets||[]).forEach(x=>P.delSets.add(x));(p.prog||[]).forEach(x=>P.prog.add(x));P.user=!!p.user}
   S.view={name:'home'};render();
   await loadAll();
