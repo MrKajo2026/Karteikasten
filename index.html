@@ -477,7 +477,7 @@ function detect(text){const {de,en}=langScore(text);if(de-en>=2)return'de';if(en
 function pairIssues(t,d,s,model){
   const out=[],fc=LCODE[s.from],tc=LCODE[s.to],T=String(t||'').trim(),D=String(d||'').trim();
   if(!T||!D){out.push({hard:true,msg:'Begriff oder Definition fehlt'});return out}
-  if(norm(T)===norm(D))out.push({hard:true,msg:'Begriff und Definition sind gleich'});
+  const flat=x=>x.toLowerCase().replace(/\s+/g,' ').trim();if(flat(T)===flat(D))out.push({hard:true,msg:'Begriff und Definition sind gleich'});
   if(/^[\d\s.,\/-]+$/.test(T)||/^[\d\s.,\/-]+$/.test(D))out.push({hard:true,msg:'Sieht aus wie eine Zahl oder Seitenzahl'});
   if(T.length>90)out.push({hard:false,msg:'Begriff ungewöhnlich lang – evtl. zwei Zeilen zusammengezogen'});
   // Sprache: Angabe der KI (falls vorhanden), sonst eigene Erkennung (nur Deutsch/Englisch)
